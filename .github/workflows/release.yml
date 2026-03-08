@@ -40,12 +40,12 @@ jobs:
           mkdir -p "${STAGING_DIR}"
           rm -rf "${STAGING_DIR:?}"/*
           cp -R "${APP_PATH}" "${STAGING_DIR}/"
+          rm -f "${ZIP_PATH}" "${DMG_PATH}"
 
           ditto -c -k --sequesterRsrc --keepParent "${APP_PATH}" "${ZIP_PATH}"
 
           if [ -f "${BG_PATH}" ]; then
             create-dmg \
-              --overwrite \
               --window-pos 200 120 \
               --window-size 560 360 \
               --icon-size 120 \
@@ -60,7 +60,6 @@ jobs:
               "${STAGING_DIR}/"
           else
             create-dmg \
-              --overwrite \
               --window-pos 200 120 \
               --window-size 560 360 \
               --icon-size 120 \
