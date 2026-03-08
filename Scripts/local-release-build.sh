@@ -77,6 +77,7 @@ mkdir -p "${STAGING_DIR}"
 rm -rf "${STAGING_DIR:?}"/*
 
 echo "Using macOS SDK: $(xcrun --sdk macosx --show-sdk-version)"
+./Scripts/generate-appicon-icns.sh
 XCODEBUILD_CMD=(xcodebuild -scheme "${SCHEME}" -configuration "${CONFIGURATION}" -derivedDataPath "${DERIVED_DATA_PATH}")
 
 if [ "${USE_DISTRIBUTION_SIGNING}" = "true" ]; then

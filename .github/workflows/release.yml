@@ -79,6 +79,8 @@ jobs:
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
           APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
         run: |
+          ./Scripts/generate-appicon-icns.sh
+
           xcodebuild \
             -scheme "${SCHEME}" \
             -configuration "${CONFIGURATION}" \
