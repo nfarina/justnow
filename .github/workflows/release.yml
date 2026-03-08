@@ -108,13 +108,14 @@ jobs:
           DMG_PATH="dist/${APP_NAME}-${VERSION}-macos.dmg"
           STAGING_DIR="dist/staging"
           BG_PATH="${GITHUB_WORKSPACE}/Assets/Release/dmg-background.png"
+          ENTITLEMENTS_PATH="${GITHUB_WORKSPACE}/Scripts/distribution-entitlements.plist"
 
           mkdir -p "${STAGING_DIR}"
           rm -rf "${STAGING_DIR:?}"/*
           cp -R "${APP_PATH}" "${STAGING_DIR}/"
           rm -f "${ZIP_PATH}" "${DMG_PATH}"
 
-          codesign --force --options runtime --timestamp --sign "${APPLE_SIGNING_IDENTITY}" "${APP_PATH}"
+          codesign --force --options runtime --timestamp --entitlements "${ENTITLEMENTS_PATH}" --deep --sign "${APPLE_SIGNING_IDENTITY}" "${APP_PATH}"
           codesign --verify --deep --strict --verbose=2 "${APP_PATH}"
 
           ditto -c -k --sequesterRsrc --keepParent "${APP_PATH}" "${ZIP_PATH}"

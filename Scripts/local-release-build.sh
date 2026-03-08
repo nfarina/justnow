@@ -11,6 +11,7 @@ ZIP_PATH="dist/${APP_NAME}-${VERSION}-macos.zip"
 DMG_PATH="dist/${APP_NAME}-${VERSION}-macos.dmg"
 STAGING_DIR="dist/staging"
 BG_PATH="Assets/Release/dmg-background.png"
+ENTITLEMENTS_PATH="Scripts/distribution-entitlements.plist"
 USE_DISTRIBUTION_SIGNING="${USE_DISTRIBUTION_SIGNING:-false}"
 SIGNING_IDENTITY="${APPLE_SIGNING_IDENTITY:-}"
 DEVELOPMENT_TEAM="${APPLE_TEAM_ID:-}"
@@ -136,7 +137,7 @@ fi
 
 if [ "${USE_DISTRIBUTION_SIGNING}" = "true" ]; then
   echo "Signing distribution artifacts with ${SIGNING_IDENTITY}"
-  codesign --force --options runtime --timestamp --sign "${SIGNING_IDENTITY}" "${APP_PATH}"
+  codesign --force --options runtime --timestamp --entitlements "${ENTITLEMENTS_PATH}" --deep --sign "${SIGNING_IDENTITY}" "${APP_PATH}"
   codesign --verify --deep --strict --verbose=2 "${APP_PATH}"
   if [ -f "${DMG_PATH}" ]; then
     codesign --force --options runtime --timestamp --sign "${SIGNING_IDENTITY}" "${DMG_PATH}"
