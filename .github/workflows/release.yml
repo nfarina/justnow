@@ -109,12 +109,22 @@ jobs:
           STAGING_DIR="dist/staging"
           BG_PATH="${GITHUB_WORKSPACE}/Assets/Release/dmg-background.png"
           ENTITLEMENTS_PATH="${GITHUB_WORKSPACE}/Scripts/distribution-entitlements.plist"
+          API_KEY_FILE="${RUNNER_TEMP}/apple_api_key.p8"
+          echo "${APPLE_API_KEY}" | base64 --decode > "${API_KEY_FILE}"
 
           rm -f "${ZIP_PATH}" "${DMG_PATH}"
 
           codesign --force --options runtime --timestamp --entitlements "${ENTITLEMENTS_PATH}" --sign "${APPLE_SIGNING_IDENTITY}" "${APP_PATH}/Contents/MacOS/JustNow"
           codesign --force --options runtime --timestamp --deep --sign "${APPLE_SIGNING_IDENTITY}" "${APP_PATH}"
           codesign --verify --deep --strict --verbose=2 "${APP_PATH}"
+          xcrun notarytool submit "${APP_PATH}" \
+            --key "${API_KEY_FILE}" \
+            --key-id "${APPLE_API_KEY_ID}" \
+            --issuer "${APPLE_API_KEY_ISSUER_ID}" \
+            --team-id "${APPLE_TEAM_ID}" \
+            --wait
+          xcrun stapler staple "${APP_PATH}"
+          xcrun stapler validate "${APP_PATH}"
 
           mkdir -p "${STAGING_DIR}"
           rm -rf "${STAGING_DIR:?}"/*
@@ -154,8 +164,6 @@ jobs:
           codesign --force --options runtime --timestamp --sign "${APPLE_SIGNING_IDENTITY}" "${DMG_PATH}"
           codesign --verify --strict --verbose=2 "${DMG_PATH}"
 
-          API_KEY_FILE="${RUNNER_TEMP}/apple_api_key.p8"
-          echo "${APPLE_API_KEY}" | base64 --decode > "${API_KEY_FILE}"
           xcrun notarytool submit "${DMG_PATH}" \
             --key "${API_KEY_FILE}" \
             --key-id "${APPLE_API_KEY_ID}" \
