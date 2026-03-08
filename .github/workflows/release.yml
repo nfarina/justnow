@@ -25,7 +25,7 @@ jobs:
           echo "macOS SDK version: ${SDK_VERSION}"
           if [ "${SDK_MAJOR}" -lt 26 ]; then
             echo "LEGACY_MACOS_UI=1" >> "${GITHUB_ENV}"
-            echo "LEGACY_OTHER_SWIFT_FLAGS=-DLEGACY_MACOS_UI" >> "${GITHUB_ENV}"
+            echo "LEGACY_OTHER_SWIFT_FLAGS=-DLEGACY_MACOS_UI -disable-upcoming-feature StrictConcurrency" >> "${GITHUB_ENV}"
             echo "LEGACY_SWIFT_STRICT_CONCURRENCY=minimal" >> "${GITHUB_ENV}"
             echo "LEGACY_SWIFT_VERSION=5" >> "${GITHUB_ENV}"
             echo "Detected SDK < 26: applying compatibility build flags."
