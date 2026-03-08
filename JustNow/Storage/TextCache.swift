@@ -166,28 +166,52 @@ actor TextCache {
     }
 
     /// Search indexed OCR text and return matching frame IDs, ranked by relevance then recency.
-    func searchFrameIDs(matching query: String, limit: Int) -> [UUID] {
+    func searchFrameIDs(matching query: String, limit: Int, since: Date? = nil) -> [UUID] {
         guard limit > 0 else {
             return []
         }
+
+        let safeLimit = Int32(clamping: limit)
+        let sinceEpoch = since?.timeIntervalSince1970
 
         var ids: [UUID] = []
 
         if let matchQuery = ftsQuery(from: query),
            let statement = try? prepare(
-               """
-               SELECT frame_text.frame_id
-               FROM frame_text_fts
-               JOIN frame_text ON frame_text.frame_id = frame_text_fts.frame_id
-               WHERE frame_text_fts MATCH ?
-               ORDER BY bm25(frame_text_fts), frame_text.timestamp DESC
-               LIMIT ?;
-               """
+               sinceEpoch == nil
+                   ?
+                   """
+                   SELECT frame_text.frame_id
+                   FROM frame_text_fts
+                   JOIN frame_text ON frame_text.frame_id = frame_text_fts.frame_id
+                   WHERE frame_text_fts MATCH ?
+                   ORDER BY bm25(frame_text_fts), frame_text.timestamp DESC
+                   LIMIT ?;
+                   """
+                   :
+                   """
+                   SELECT frame_text.frame_id
+                   FROM frame_text_fts
+                   JOIN frame_text ON frame_text.frame_id = frame_text_fts.frame_id
+                   WHERE frame_text_fts MATCH ?
+                     AND frame_text.timestamp >= ?
+                   ORDER BY bm25(frame_text_fts), frame_text.timestamp DESC
+                   LIMIT ?;
+                   """
            ) {
             defer { sqlite3_finalize(statement) }
 
-            if bindText(matchQuery, to: statement, index: 1),
-               bindInt32(Int32(limit), to: statement, index: 2) {
+            var bindIndex: Int32 = 1
+            var canQuery = bindText(matchQuery, to: statement, index: bindIndex)
+            bindIndex += 1
+
+            if canQuery, let sinceEpoch {
+                canQuery = bindDouble(sinceEpoch, to: statement, index: bindIndex)
+                bindIndex += 1
+            }
+
+            if canQuery,
+               bindInt32(safeLimit, to: statement, index: bindIndex) {
                 while sqlite3_step(statement) == SQLITE_ROW {
                     guard let cText = sqlite3_column_text(statement, 0) else { continue }
                     let raw = String(cString: cText)
@@ -203,20 +227,43 @@ actor TextCache {
         }
 
         guard let fallback = try? prepare(
-            """
-            SELECT frame_id
-            FROM frame_text
-            WHERE instr(lower(text), lower(?)) > 0
-            ORDER BY timestamp DESC
-            LIMIT ?;
-            """
+            sinceEpoch == nil
+                ?
+                """
+                SELECT frame_id
+                FROM frame_text
+                WHERE instr(lower(text), lower(?)) > 0
+                ORDER BY timestamp DESC
+                LIMIT ?;
+                """
+                :
+                """
+                SELECT frame_id
+                FROM frame_text
+                WHERE instr(lower(text), lower(?)) > 0
+                  AND timestamp >= ?
+                ORDER BY timestamp DESC
+                LIMIT ?;
+                """
         ) else {
             return []
         }
         defer { sqlite3_finalize(fallback) }
 
-        guard bindText(query, to: fallback, index: 1),
-              bindInt32(Int32(limit), to: fallback, index: 2) else {
+        var bindIndex: Int32 = 1
+        guard bindText(query, to: fallback, index: bindIndex) else {
+            return []
+        }
+        bindIndex += 1
+
+        if let sinceEpoch {
+            guard bindDouble(sinceEpoch, to: fallback, index: bindIndex) else {
+                return []
+            }
+            bindIndex += 1
+        }
+
+        guard bindInt32(safeLimit, to: fallback, index: bindIndex) else {
             return []
         }
 

@@ -10,6 +10,52 @@ import os.log
 
 private let logger = Logger(subsystem: "sg.tk.JustNow", category: "OverlayView")
 
+enum SearchTimeScope: String, CaseIterable {
+    case fiveMinutes
+    case oneHour
+    case oneDay
+    case all
+
+    var label: String {
+        switch self {
+        case .fiveMinutes:
+            return "Last 5m"
+        case .oneHour:
+            return "Last 1h"
+        case .oneDay:
+            return "Last 24h"
+        case .all:
+            return "All"
+        }
+    }
+
+    var compactLabel: String {
+        switch self {
+        case .fiveMinutes:
+            return "5m"
+        case .oneHour:
+            return "1h"
+        case .oneDay:
+            return "24h"
+        case .all:
+            return "All"
+        }
+    }
+
+    func cutoff(from now: Date = Date()) -> Date? {
+        switch self {
+        case .fiveMinutes:
+            return now.addingTimeInterval(-5 * 60)
+        case .oneHour:
+            return now.addingTimeInterval(-60 * 60)
+        case .oneDay:
+            return now.addingTimeInterval(-24 * 60 * 60)
+        case .all:
+            return nil
+        }
+    }
+}
+
 @Observable
 class OverlayViewModel {
     var selectedIndex: Int = 0
@@ -20,6 +66,7 @@ class OverlayViewModel {
     // Search state
     var isSearching = false
     var searchQuery = ""
+    var searchTimeScope: SearchTimeScope = .all
     var searchResults: [StoredFrame] = []
     var isSearchInProgress = false
     var searchProgress: Double = 0
@@ -73,13 +120,26 @@ class OverlayViewModel {
         searchResults = []
 
         let query = searchQuery // Capture locally for task
-        let framesToSearch = frames
+        let scope = searchTimeScope
+        let searchCutoff = scope.cutoff()
+        let framesToSearch = searchCutoff.map { cutoff in
+            frames.filter { $0.timestamp >= cutoff }
+        } ?? frames
         let buffer = frameBuffer
         let cache = frameBuffer.textCache
         let searchStartedAt = Date()
 
         searchTask = Task {
             let total = framesToSearch.count
+            guard total > 0 else {
+                await MainActor.run {
+                    searchResults = []
+                    searchProgress = 1
+                    isSearchInProgress = false
+                }
+                return
+            }
+
             let allFrameIDs = framesToSearch.map(\.id)
             let cachedIDs = await cache.cachedFrameIDs(in: allFrameIDs)
             let uncachedFrames = framesToSearch.filter { !cachedIDs.contains($0.id) }
@@ -142,7 +202,7 @@ class OverlayViewModel {
 
             guard !Task.isCancelled else { return }
 
-            let matchedIDs = await cache.searchFrameIDs(matching: query, limit: total)
+            let matchedIDs = await cache.searchFrameIDs(matching: query, limit: total, since: searchCutoff)
             let frameByID = Dictionary(uniqueKeysWithValues: framesToSearch.map { ($0.id, $0) })
             var seenIDs: Set<UUID> = []
             var sortedFrames: [StoredFrame] = []
@@ -344,6 +404,36 @@ struct SearchBarView: View {
             } label: {
                 Image(systemName: "xmark.circle.fill")
                     .foregroundStyle(.white.opacity(0.5))
+            }
+            .buttonStyle(.plain)
+
+            Menu {
+                ForEach(SearchTimeScope.allCases, id: \.self) { scope in
+                    Button {
+                        viewModel.searchTimeScope = scope
+                        if !viewModel.searchQuery.isEmpty {
+                            viewModel.performSearch()
+                        }
+                    } label: {
+                        if scope == viewModel.searchTimeScope {
+                            Label(scope.label, systemImage: "checkmark")
+                        } else {
+                            Text(scope.label)
+                        }
+                    }
+                }
+            } label: {
+                HStack(spacing: 6) {
+                    Text(viewModel.searchTimeScope.compactLabel)
+                        .font(.caption)
+                        .fontWeight(.medium)
+                    Image(systemName: "chevron.down")
+                        .font(.system(size: 10, weight: .semibold))
+                }
+                .foregroundStyle(.white.opacity(0.75))
+                .padding(.horizontal, 10)
+                .padding(.vertical, 7)
+                .background(.white.opacity(0.12), in: Capsule())
             }
             .buttonStyle(.plain)
         }
