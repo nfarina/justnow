@@ -117,14 +117,6 @@ jobs:
           codesign --force --options runtime --timestamp --entitlements "${ENTITLEMENTS_PATH}" --sign "${APPLE_SIGNING_IDENTITY}" "${APP_PATH}/Contents/MacOS/JustNow"
           codesign --force --options runtime --timestamp --deep --sign "${APPLE_SIGNING_IDENTITY}" "${APP_PATH}"
           codesign --verify --deep --strict --verbose=2 "${APP_PATH}"
-          xcrun notarytool submit "${APP_PATH}" \
-            --key "${API_KEY_FILE}" \
-            --key-id "${APPLE_API_KEY_ID}" \
-            --issuer "${APPLE_API_KEY_ISSUER_ID}" \
-            --team-id "${APPLE_TEAM_ID}" \
-            --wait
-          xcrun stapler staple "${APP_PATH}"
-          xcrun stapler validate "${APP_PATH}"
 
           mkdir -p "${STAGING_DIR}"
           rm -rf "${STAGING_DIR:?}"/*
@@ -171,6 +163,7 @@ jobs:
             --team-id "${APPLE_TEAM_ID}" \
             --wait
           xcrun stapler staple "${DMG_PATH}"
+          xcrun stapler validate "${DMG_PATH}"
 
           rm -rf "${STAGING_DIR}"
 
