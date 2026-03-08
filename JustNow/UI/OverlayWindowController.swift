@@ -6,6 +6,7 @@
 import AppKit
 import SwiftUI
 
+@MainActor
 class OverlayWindowController: NSObject {
     private var window: OverlayWindow?
     private let frameBuffer: FrameBuffer

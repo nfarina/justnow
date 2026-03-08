@@ -57,6 +57,7 @@ enum SearchTimeScope: String, CaseIterable {
 }
 
 @Observable
+@MainActor
 class OverlayViewModel {
     var selectedIndex: Int = 0
     let frames: [StoredFrame]
@@ -232,12 +233,15 @@ class OverlayViewModel {
                 "\(cachedIDs.count) cache hits, \(ocrRuns) OCR runs, \(loadFailures) frame load failures"
             )
 
+            let finalResults = sortedFrames
+            let finalSelectedIndex = finalResults.isEmpty ? nil : finalResults.count - 1
+
             await MainActor.run {
                 if !Task.isCancelled {
-                    searchResults = sortedFrames
+                    searchResults = finalResults
                     isSearchInProgress = false
-                    if !sortedFrames.isEmpty {
-                        selectedIndex = sortedFrames.count - 1
+                    if let finalSelectedIndex {
+                        selectedIndex = finalSelectedIndex
                     }
                 }
             }

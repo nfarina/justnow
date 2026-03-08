@@ -12,7 +12,7 @@ private let logger = Logger(subsystem: "sg.tk.JustNow", category: "TextRecogniti
 enum TextRecognitionManager {
 
     /// Extracts text from a CGImage using VNRecognizeTextRequest
-    @concurrent
+    @Sendable
     static func extractText(from image: CGImage) async -> String {
         let request = VNRecognizeTextRequest()
         request.recognitionLevel = .fast  // Much faster than .accurate

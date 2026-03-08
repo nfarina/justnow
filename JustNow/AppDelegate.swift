@@ -36,6 +36,7 @@ enum RecentTimelineWindow: Double, CaseIterable, Identifiable {
     }
 }
 
+@MainActor
 class AppDelegate: NSObject, NSApplicationDelegate, ScreenCaptureDelegate, NSMenuDelegate {
     private var statusItem: NSStatusItem!
     private var captureManager: ScreenCaptureManager!
