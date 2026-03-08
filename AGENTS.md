@@ -7,7 +7,7 @@ JustNow is a macOS menu bar app that captures screenshots and lets you scroll ba
 - Target: macOS 26+, Swift 6.2, SwiftUI
 - Bundle ID: `sg.tk.JustNow`
 - Storage: `~/Library/Application Support/JustNow/`
-- Hotkey: configurable, default `⌘⌥R`
+- Hotkey: configurable, default `⌘⌥J`
 
 ## Release Stage
 

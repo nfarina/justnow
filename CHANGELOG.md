@@ -9,3 +9,4 @@ All notable changes to JustNow will be documented in this file.
 - Added custom app and menu bar icon assets for clearer recording state feedback.
 - Added reproducible icon source files under `Assets/IconSources`.
 - Improved status bar icon rendering to use dedicated idle and recording images.
+- Updated the default keyboard shortcut to `⌘⌥J` for opening the overlay.

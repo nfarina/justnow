@@ -9,7 +9,7 @@ A native macOS menu bar app that continuously captures screenshots and lets you 
 - **Exponential decay**: Recent frames kept at full density, older frames thinned out
 - **Recent detail**: Browse the newest 1, 2, or 5 minutes using every stored frame before older history is collapsed
 - **Battery conscious**: Can reduce quality/background work on battery without changing your chosen cadence
-- **Fullscreen overlay**: Press ⌘⌥R to view timeline, scroll/drag to navigate
+- **Fullscreen overlay**: Press ⌘⌥J to view timeline, scroll/drag to navigate
 - **Menu bar only**: Runs silently with no dock icon
 
 ## Requirements
@@ -22,7 +22,7 @@ A native macOS menu bar app that continuously captures screenshots and lets you 
 1. Launch JustNow - it appears in the menu bar
 2. Grant Screen Recording permission when prompted
 3. Let it run to build up history
-4. Press **⌘⌥R** to open the timeline overlay
+4. Press **⌘⌥J** to open the timeline overlay
 5. Scroll horizontally or drag to navigate through time
 6. Press **Escape** to dismiss
 

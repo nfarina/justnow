@@ -13,7 +13,7 @@ struct SettingsView: View {
     @AppStorage("keepConfiguredCaptureCadenceOnBattery")
     private var keepConfiguredCaptureCadenceOnBattery: Bool = true
     @AppStorage("backgroundSearchIndexingEnabled") private var backgroundSearchIndexingEnabled: Bool = true
-    @AppStorage("shortcutKeyCode") private var shortcutKeyCode: Int = 15  // R key
+    @AppStorage("shortcutKeyCode") private var shortcutKeyCode: Int = 38  // J key
     @AppStorage("shortcutModifiers") private var shortcutModifiers: Int = 1_572_864  // ⌘⌥
 
     var frameBuffer: FrameBuffer?
