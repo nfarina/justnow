@@ -120,7 +120,7 @@ if command -v create-dmg >/dev/null 2>&1; then
       --app-drop-link 390 190 \
       --hide-extension "${APP_NAME}.app" \
       --no-internet-enable \
-      --volname "${APP_NAME} ${VERSION}" \
+      --volname "${APP_NAME}" \
       --background "${BG_PATH}" \
       "${DMG_PATH}" \
       "${STAGING_DIR}/"
@@ -134,7 +134,7 @@ if command -v create-dmg >/dev/null 2>&1; then
       --app-drop-link 390 190 \
       --hide-extension "${APP_NAME}.app" \
       --no-internet-enable \
-      --volname "${APP_NAME} ${VERSION}" \
+      --volname "${APP_NAME}" \
       "${DMG_PATH}" \
       "${STAGING_DIR}/"
   fi

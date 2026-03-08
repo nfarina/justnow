@@ -130,7 +130,7 @@ jobs:
               --app-drop-link 390 190 \
               --hide-extension "${APP_NAME}.app" \
               --no-internet-enable \
-              --volname "${APP_NAME} ${VERSION}" \
+              --volname "${APP_NAME}" \
               --background "${BG_PATH}" \
               "${DMG_PATH}" \
               "${STAGING_DIR}/"
@@ -144,7 +144,7 @@ jobs:
               --app-drop-link 390 190 \
               --hide-extension "${APP_NAME}.app" \
               --no-internet-enable \
-              --volname "${APP_NAME} ${VERSION}" \
+              --volname "${APP_NAME}" \
               "${DMG_PATH}" \
               "${STAGING_DIR}/"
           fi
