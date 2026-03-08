@@ -68,6 +68,31 @@ Release builds are assembled with `create-dmg` in CI to include:
 - a styled install window layout with an Applications drop target arrow
 - optional custom background image when `Assets/Release/dmg-background.png` exists
 
+## Release signing (GitHub Actions)
+
+Public release artifacts are signed and notarized in CI.
+
+Set the following repository secrets before tagging a release:
+
+- `APPLE_TEAM_ID` (example: `PQ6U5ESLN2`)
+- `APPLE_SIGNING_IDENTITY` (example: `Developer ID Application: Your Name (PQ6U5ESLN2)`)
+- `APPLE_SIGNING_CERTIFICATE_P12` (base64-encoded `.p12`)
+- `APPLE_SIGNING_CERTIFICATE_PASSWORD`
+- `APPLE_KEYCHAIN_PASSWORD`
+- `APPLE_API_KEY` (base64-encoded `.p8`)
+- `APPLE_API_KEY_ID`
+- `APPLE_API_KEY_ISSUER_ID`
+
+When these secrets are configured, release jobs:
+
+- build with `CODE_SIGN_STYLE=Manual`
+- sign app + DMG with Developer ID
+- notarize the DMG
+- staple it
+- upload the signed artifacts to GitHub Releases
+
+If the secrets are missing, the workflow now fails early with a clear error.
+
 ## Licence
 
 MIT
