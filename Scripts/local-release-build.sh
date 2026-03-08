@@ -95,8 +95,17 @@ fi
 
 "${XCODEBUILD_CMD[@]}"
 
-cp -R "${APP_PATH}" "${STAGING_DIR}/"
 rm -f "${ZIP_PATH}" "${DMG_PATH}"
+
+if [ "${USE_DISTRIBUTION_SIGNING}" = "true" ]; then
+  echo "Signing distribution artifacts with ${SIGNING_IDENTITY}"
+  codesign --force --options runtime --timestamp --entitlements "${ENTITLEMENTS_PATH}" --deep --sign "${SIGNING_IDENTITY}" "${APP_PATH}"
+  codesign --verify --deep --strict --verbose=2 "${APP_PATH}"
+fi
+
+mkdir -p "${STAGING_DIR}"
+rm -rf "${STAGING_DIR:?}"/*
+cp -R "${APP_PATH}" "${STAGING_DIR}/"
 
 ditto -c -k --sequesterRsrc --keepParent "${APP_PATH}" "${ZIP_PATH}"
 
@@ -133,14 +142,9 @@ else
   echo "create-dmg not found; skipping .dmg creation. Install with: brew install create-dmg"
 fi
 
-if [ "${USE_DISTRIBUTION_SIGNING}" = "true" ]; then
-  echo "Signing distribution artifacts with ${SIGNING_IDENTITY}"
-  codesign --force --options runtime --timestamp --entitlements "${ENTITLEMENTS_PATH}" --deep --sign "${SIGNING_IDENTITY}" "${APP_PATH}"
-  codesign --verify --deep --strict --verbose=2 "${APP_PATH}"
-  if [ -f "${DMG_PATH}" ]; then
-    codesign --force --options runtime --timestamp --sign "${SIGNING_IDENTITY}" "${DMG_PATH}"
-    codesign --verify --strict --verbose=2 "${DMG_PATH}"
-  fi
+if [ "${USE_DISTRIBUTION_SIGNING}" = "true" ] && [ -f "${DMG_PATH}" ]; then
+  codesign --force --options runtime --timestamp --sign "${SIGNING_IDENTITY}" "${DMG_PATH}"
+  codesign --verify --strict --verbose=2 "${DMG_PATH}"
 fi
 
 rm -rf "${STAGING_DIR}"
