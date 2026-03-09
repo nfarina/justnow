@@ -96,3 +96,7 @@ Release process and signing/deployment details are documented in:
 - Use `ScreenCaptureKit`; `CGWindowListCreateImage` is deprecated.
 - Pruning is paused while the overlay is open.
 - Frames persist across restarts via the on-disk manifest.
+- Keep menu bar recording controls visually in sync: when pause/resume state changes, update both the menu item and the status item icon.
+- If UI copy mentions a nominal capture interval, sanity-check it against adaptive throttling and deduplicated browsing so the user-facing wording still matches observed behaviour.
+- Avoid stacking a custom permission alert on top of a macOS TCC prompt during first-launch flows; if the system dialog is already doing the ask, defer app guidance until after the user responds.
+- When a SwiftUI view is exposed through both a `Settings` scene and an AppKit-hosted window, centralise construction and shared dependencies so both entry points stay in sync.
