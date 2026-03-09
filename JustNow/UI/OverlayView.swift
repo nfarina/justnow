@@ -78,6 +78,10 @@ class OverlayViewModel {
         isSearching && !searchQuery.isEmpty ? searchResults : frames
     }
 
+    var displayedFrameCount: Int {
+        displayedFrames.count
+    }
+
     init(frames: [StoredFrame], frameBuffer: FrameBuffer, onDismiss: @escaping () -> Void) {
         self.frames = frames
         self.frameBuffer = frameBuffer
@@ -255,7 +259,7 @@ class OverlayViewModel {
     }
 
     func moveRight() {
-        if selectedIndex < frames.count - 1 {
+        if selectedIndex < displayedFrameCount - 1 {
             selectedIndex += 1
         }
     }
@@ -265,7 +269,7 @@ class OverlayViewModel {
     }
 
     func jumpRight() {
-        selectedIndex = min(frames.count - 1, selectedIndex + 10)
+        selectedIndex = min(displayedFrameCount - 1, selectedIndex + 10)
     }
 
     func goToStart() {
@@ -273,13 +277,14 @@ class OverlayViewModel {
     }
 
     func goToEnd() {
-        selectedIndex = max(0, frames.count - 1)
+        selectedIndex = max(0, displayedFrameCount - 1)
     }
 
     func scrollBy(_ delta: CGFloat) {
+        guard displayedFrameCount > 0 else { return }
         let step = delta > 0 ? -1 : 1
         let newIndex = selectedIndex + step
-        selectedIndex = max(0, min(frames.count - 1, newIndex))
+        selectedIndex = max(0, min(displayedFrameCount - 1, newIndex))
     }
 }
 
@@ -608,7 +613,7 @@ struct TimelineSlider: View {
                         .font(.system(size: 11))
                         .foregroundStyle(.white.opacity(0.5))
                 }
-                Text("\(viewModel.selectedIndex + 1) / \(frameCount)")
+                Text(framePositionLabel)
                     .fontWeight(.medium)
                 if let frame = currentFrame {
                     Text("·")
@@ -620,6 +625,11 @@ struct TimelineSlider: View {
             .font(.system(size: 13, design: .monospaced))
             .foregroundStyle(.white.opacity(0.7))
         }
+    }
+
+    private var framePositionLabel: String {
+        guard frameCount > 0 else { return "0 / 0" }
+        return "\(viewModel.selectedIndex + 1) / \(frameCount)"
     }
 }
 
@@ -735,6 +745,7 @@ struct SliderTrack: View {
             .gesture(
                 DragGesture(minimumDistance: 0)
                     .onChanged { value in
+                        guard frameCount > 0 else { return }
                         let percent = max(0, min(1, value.location.x / width))
                         let newIndex = Int(percent * CGFloat(frameCount - 1))
                         onIndexChanged(newIndex)
