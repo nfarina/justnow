@@ -29,9 +29,13 @@ class OverlayWindowController: NSObject {
 
         // Get frames with near-duplicates filtered out for smoother browsing
         let frames = frameBuffer.getFilteredFrames(recentWindow: recentTimelineWindow)
-        let vm = OverlayViewModel(frames: frames, frameBuffer: frameBuffer, onDismiss: { [weak self] in
-            self?.hideOverlay()
-        })
+        let vm = OverlayViewModel(
+            frames: frames,
+            frameBuffer: frameBuffer,
+            onDismiss: { [weak self] in
+                self?.hideOverlay()
+            }
+        )
         self.viewModel = vm
 
         let window = OverlayWindow(

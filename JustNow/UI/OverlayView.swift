@@ -62,6 +62,7 @@ class OverlayViewModel {
     var selectedIndex: Int = 0
     let frames: [StoredFrame]
     let frameBuffer: FrameBuffer
+    let timelineReferenceDate: Date
     let onDismiss: () -> Void
 
     // Search state
@@ -82,9 +83,14 @@ class OverlayViewModel {
         displayedFrames.count
     }
 
-    init(frames: [StoredFrame], frameBuffer: FrameBuffer, onDismiss: @escaping () -> Void) {
+    init(
+        frames: [StoredFrame],
+        frameBuffer: FrameBuffer,
+        onDismiss: @escaping () -> Void
+    ) {
         self.frames = frames
         self.frameBuffer = frameBuffer
+        self.timelineReferenceDate = Date()
         self.onDismiss = onDismiss
         self.selectedIndex = max(0, frames.count - 1)
     }
@@ -588,11 +594,25 @@ struct FramePreviewView: View {
     }
 }
 
-struct TimelineSlider: View {
+private struct TimelineSlider: View {
     var viewModel: OverlayViewModel
 
     private var displayedFrames: [StoredFrame] { viewModel.displayedFrames }
     private var frameCount: Int { displayedFrames.count }
+    private var timelineMarkers: [TimelineMarker] {
+        guard !(viewModel.isSearching && !viewModel.searchQuery.isEmpty) else { return [] }
+        return timelineLandmarkMarkers(
+            frames: displayedFrames,
+            now: viewModel.timelineReferenceDate
+        )
+    }
+
+    private var colourSegments: [TimelineZoneFill] {
+        timelineColourSegments(
+            frames: displayedFrames,
+            now: viewModel.timelineReferenceDate
+        )
+    }
 
     private var currentFrame: StoredFrame? {
         displayedFrames[safe: viewModel.selectedIndex]
@@ -605,9 +625,11 @@ struct TimelineSlider: View {
             SliderTrack(
                 frameCount: frameCount,
                 selectedIndex: viewModel.selectedIndex,
+                markers: timelineMarkers,
+                colourSegments: colourSegments,
                 onIndexChanged: { viewModel.selectedIndex = $0 }
             )
-            .frame(height: 32)
+            .frame(height: timelineMarkers.isEmpty ? 32 : 54)
             .padding(.horizontal, 8)
             .padding(.vertical, 12)
             .darkBarBackground(in: RoundedRectangle(cornerRadius: 20, style: .continuous))
@@ -639,7 +661,7 @@ struct TimelineSlider: View {
     }
 }
 
-struct TimeLabels: View {
+private struct TimeLabels: View {
     let frames: [StoredFrame]
 
     var body: some View {
@@ -686,6 +708,14 @@ private let dateTimeFormatter: DateFormatter = {
     return formatter
 }()
 
+private let timelineAbsoluteTimeFormatter: DateFormatter = {
+    let formatter = DateFormatter()
+    formatter.locale = .autoupdatingCurrent
+    formatter.timeStyle = .short
+    formatter.dateStyle = .none
+    return formatter
+}()
+
 /// Format timestamp as relative time or absolute time for older frames
 private func formatRelativeTime(_ date: Date) -> String {
     let seconds = Int(Date().timeIntervalSince(date))
@@ -720,33 +750,91 @@ private func formatRelativeTime(_ date: Date) -> String {
     return dateTimeFormatter.string(from: date)
 }
 
-struct SliderTrack: View {
+private struct SliderTrack: View {
     let frameCount: Int
     let selectedIndex: Int
+    let markers: [TimelineMarker]
+    let colourSegments: [TimelineZoneFill]
     let onIndexChanged: (Int) -> Void
+
+    private let trackHeight: CGFloat = 10
 
     var body: some View {
         GeometryReader { geometry in
             let width = geometry.size.width
+            let visibleMarkers = visibleMarkers(in: width)
 
-            ZStack(alignment: .leading) {
-                // Track background
-                RoundedRectangle(cornerRadius: 4)
-                    .fill(.white.opacity(0.2))
-                    .frame(height: 8)
+            VStack(spacing: visibleMarkers.isEmpty ? 0 : 8) {
+                ZStack(alignment: .leading) {
+                    RoundedRectangle(cornerRadius: trackHeight / 2, style: .continuous)
+                        .fill(Color(red: 0.19, green: 0.19, blue: 0.21))
+                        .frame(height: trackHeight)
 
-                // Progress fill
-                RoundedRectangle(cornerRadius: 4)
-                    .fill(.white.opacity(0.6))
-                    .frame(width: progressWidth(in: width), height: 8)
+                    if colourSegments.isEmpty {
+                        RoundedRectangle(cornerRadius: trackHeight / 2, style: .continuous)
+                            .fill(Color.white.opacity(0.05))
+                            .frame(height: trackHeight)
+                    } else {
+                        ForEach(colourSegments) { fill in
+                            Rectangle()
+                                .fill(fill.color.opacity(0.88))
+                                .frame(width: max(0, (fill.end - fill.start) * width), height: trackHeight)
+                                .offset(x: fill.start * width)
+                        }
+                        .clipShape(RoundedRectangle(cornerRadius: trackHeight / 2, style: .continuous))
 
-                // Thumb
-                Circle()
-                    .fill(.white)
-                    .frame(width: 24, height: 24)
-                    .shadow(color: .black.opacity(0.3), radius: 4)
-                    .offset(x: thumbOffset(in: width))
+                        RoundedRectangle(cornerRadius: trackHeight / 2, style: .continuous)
+                            .fill(
+                                LinearGradient(
+                                    colors: [
+                                        Color.white.opacity(0.05),
+                                        Color.white.opacity(0.01)
+                                    ],
+                                    startPoint: .top,
+                                    endPoint: .bottom
+                                )
+                            )
+                            .frame(height: trackHeight)
+                    }
+
+                    if colourSegments.isEmpty {
+                        RoundedRectangle(cornerRadius: trackHeight / 2, style: .continuous)
+                            .fill(Color.white.opacity(0.55))
+                            .frame(width: progressWidth(in: width), height: trackHeight)
+                    }
+
+                    if !visibleMarkers.isEmpty {
+                        ForEach(visibleMarkers) { marker in
+                            Rectangle()
+                                .fill(marker.tint)
+                                .frame(width: 3, height: trackHeight)
+                                .offset(x: (width * marker.position) - 1.5)
+                        }
+                        .clipShape(RoundedRectangle(cornerRadius: trackHeight / 2, style: .continuous))
+                    }
+
+                    Circle()
+                        .fill(.white)
+                        .frame(width: 24, height: 24)
+                        .shadow(color: .black.opacity(0.3), radius: 4)
+                        .offset(x: thumbOffset(in: width))
+                }
+                .frame(height: 24)
+
+                if !visibleMarkers.isEmpty {
+                    ZStack(alignment: .leading) {
+                        ForEach(labelPlacements(for: visibleMarkers, in: width)) { placement in
+                            Text(placement.marker.label)
+                                .font(.system(size: 10, weight: .medium))
+                                .foregroundStyle(.white.opacity(0.45))
+                                .fixedSize()
+                                .position(x: placement.x, y: 6)
+                        }
+                    }
+                    .frame(height: 12)
+                }
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             .contentShape(Rectangle())
             .gesture(
                 DragGesture(minimumDistance: 0)
@@ -785,6 +873,48 @@ struct SliderTrack: View {
         return (totalWidth - 24) * percent
     }
 
+    private func visibleMarkers(in width: CGFloat) -> [TimelineMarker] {
+        let inset: CGFloat = 34
+        let minimumSpacing: CGFloat = 56
+        let basePlacements = markers.map { marker in
+            let x = min(max(width * marker.position, inset), max(inset, width - inset))
+            return TimelineLabelPlacement(marker: marker, x: x)
+        }
+
+        guard basePlacements.count > 1 else { return basePlacements.map(\.marker) }
+
+        var kept: [TimelineLabelPlacement] = []
+        let prioritized = basePlacements.sorted { lhs, rhs in
+            if lhs.marker.priority != rhs.marker.priority {
+                return lhs.marker.priority < rhs.marker.priority
+            }
+            if lhs.marker.targetAge != rhs.marker.targetAge {
+                return lhs.marker.targetAge < rhs.marker.targetAge
+            }
+            return lhs.marker.position > rhs.marker.position
+        }
+
+        for candidate in prioritized {
+            let overlapsExisting = kept.contains { abs($0.x - candidate.x) < minimumSpacing }
+            if !overlapsExisting {
+                kept.append(candidate)
+            }
+        }
+
+        return kept
+            .map(\.marker)
+            .sorted { $0.position < $1.position }
+    }
+
+    private func labelPlacements(for markers: [TimelineMarker], in width: CGFloat) -> [TimelineLabelPlacement] {
+        let inset: CGFloat = 34
+
+        return markers.map { marker in
+            let x = min(max(width * marker.position, inset), max(inset, width - inset))
+            return TimelineLabelPlacement(marker: marker, x: x)
+        }
+    }
+
     private var accessibilityValue: String {
         guard frameCount > 0 else { return "No frames" }
         return "Frame \(selectedIndex + 1) of \(frameCount)"
@@ -796,4 +926,289 @@ struct SliderTrack: View {
         guard nextIndex != selectedIndex else { return }
         onIndexChanged(nextIndex)
     }
+}
+
+private struct TimelineMarker: Identifiable {
+    let targetAge: TimeInterval
+    let targetDate: Date
+    let label: String
+    let position: CGFloat
+    let frameIndex: Int
+    let priority: Int
+    let tint: Color = Color(red: 1.0, green: 0.86, blue: 0.12)
+
+    var id: Int { frameIndex }
+}
+
+private struct TimelineMarkerTarget: Identifiable {
+    let targetAge: TimeInterval
+    let targetDate: Date
+    let label: String
+    let priority: Int
+
+    var id: String { "\(priority)-\(targetDate.timeIntervalSinceReferenceDate)" }
+}
+
+private struct TimelineZoneFill: Identifiable {
+    let start: CGFloat
+    let end: CGFloat
+    let color: Color
+
+    var id: String { "\(start)-\(end)" }
+}
+
+private struct TimelineLabelPlacement: Identifiable {
+    let marker: TimelineMarker
+    var x: CGFloat
+
+    var id: Int { marker.id }
+}
+
+private func resolveTimelineMarkerFrameIndex(
+    frames: [StoredFrame],
+    targetDate: Date
+) -> Int? {
+    guard frames.count > 1 else { return nil }
+
+    let olderIndex = frames.lastIndex(where: { $0.timestamp <= targetDate })
+    let newerIndex = frames.firstIndex(where: { $0.timestamp >= targetDate })
+
+    switch (olderIndex, newerIndex) {
+    case let (.some(older), .some(newer)):
+        let olderDistance = abs(frames[older].timestamp.timeIntervalSince(targetDate))
+        let newerDistance = abs(frames[newer].timestamp.timeIntervalSince(targetDate))
+        return olderDistance <= newerDistance ? older : newer
+    case let (.some(older), nil):
+        return older
+    case let (nil, .some(newer)):
+        return newer
+    case (nil, nil):
+        return nil
+    }
+}
+
+private func resolveTimelineWindowStartIndex(
+    frames: [StoredFrame],
+    targetAge: TimeInterval,
+    now: Date = Date()
+) -> Int? {
+    guard frames.count > 1 else { return nil }
+
+    let targetDate = now.addingTimeInterval(-targetAge)
+    return frames.firstIndex(where: { $0.timestamp >= targetDate })
+}
+
+private func timelineLandmarkMarkers(
+    frames: [StoredFrame],
+    now: Date = Date()
+) -> [TimelineMarker] {
+    guard frames.count > 1, let oldest = frames.first?.timestamp else { return [] }
+
+    let oldestAge = now.timeIntervalSince(oldest)
+    let targets = timelineMarkerTargets(upTo: oldestAge, now: now)
+    var markersByFrameIndex: [Int: TimelineMarker] = [:]
+
+    for target in targets {
+        guard let frameIndex = resolveTimelineMarkerFrameIndex(
+            frames: frames,
+            targetDate: target.targetDate
+        ) else { continue }
+
+        let frame = frames[frameIndex]
+        guard isTimelineMarkerRepresentative(
+            targetAge: target.targetAge,
+            targetDate: target.targetDate,
+            frameDate: frame.timestamp
+        ) else { continue }
+
+        let position = CGFloat(frameIndex) / CGFloat(frames.count - 1)
+        let marker = TimelineMarker(
+            targetAge: target.targetAge,
+            targetDate: target.targetDate,
+            label: target.label,
+            position: position,
+            frameIndex: frameIndex,
+            priority: target.priority
+        )
+
+        if let existing = markersByFrameIndex[frameIndex] {
+            markersByFrameIndex[frameIndex] = existing.priority <= marker.priority ? existing : marker
+        } else {
+            markersByFrameIndex[frameIndex] = marker
+        }
+    }
+
+    return markersByFrameIndex.values.sorted { $0.position < $1.position }
+}
+
+private func timelineMarkerTargets(upTo oldestAge: TimeInterval, now: Date) -> [TimelineMarkerTarget] {
+    guard oldestAge > 0 else { return [] }
+
+    let dayLimit = min(oldestAge, 24 * 60 * 60)
+    let relativeAges: [TimeInterval] = [5.0 * 60, 10.0 * 60, 30.0 * 60, 60.0 * 60, 2.0 * 60.0 * 60.0]
+        .filter { $0 <= dayLimit }
+    var targets = relativeAges.enumerated().map { index, targetAge in
+        TimelineMarkerTarget(
+            targetAge: targetAge,
+            targetDate: now.addingTimeInterval(-targetAge),
+            label: formatTimelineMarkerLabel(targetAge: targetAge, targetDate: now.addingTimeInterval(-targetAge)),
+            priority: index
+        )
+    }
+
+    if dayLimit > 2 * 60 * 60 {
+        let blockHours = [3, 4, 6, 8, 12, 16, 24]
+        var priority = targets.count
+        var seenDates: Set<TimeInterval> = Set(targets.map { $0.targetDate.timeIntervalSinceReferenceDate })
+        for blockHour in blockHours {
+            guard blockHour <= Int(dayLimit / 3600) else { continue }
+            let rawTargetDate = now.addingTimeInterval(-TimeInterval(blockHour * 3600))
+            let snappedTargetDate = snappedTimelineAbsoluteDate(rawTargetDate)
+            let snappedAge = now.timeIntervalSince(snappedTargetDate)
+
+            if snappedAge > 2 * 60 * 60,
+               snappedAge <= dayLimit,
+               seenDates.insert(snappedTargetDate.timeIntervalSinceReferenceDate).inserted {
+                targets.append(
+                    TimelineMarkerTarget(
+                        targetAge: snappedAge,
+                        targetDate: snappedTargetDate,
+                        label: formatTimelineMarkerLabel(targetAge: snappedAge, targetDate: snappedTargetDate),
+                        priority: priority
+                    )
+                )
+                priority += 1
+            }
+        }
+    }
+
+    return targets
+}
+
+private func snappedTimelineAbsoluteDate(_ date: Date) -> Date {
+    let interval = date.timeIntervalSinceReferenceDate
+    let halfHour: TimeInterval = 30 * 60
+    let snapped = (interval / halfHour).rounded() * halfHour
+    return Date(timeIntervalSinceReferenceDate: snapped)
+}
+
+private func isTimelineMarkerRepresentative(
+    targetAge: TimeInterval,
+    targetDate: Date,
+    frameDate: Date
+) -> Bool {
+    let tolerance: TimeInterval
+
+    if targetAge < 15 * 60 {
+        tolerance = 5 * 60
+    } else if targetAge < 45 * 60 {
+        tolerance = 15 * 60
+    } else if targetAge < 2 * 60 * 60 {
+        tolerance = 30 * 60
+    } else {
+        tolerance = 90 * 60
+    }
+
+    return abs(frameDate.timeIntervalSince(targetDate)) <= tolerance
+}
+
+private func timelineColourSegments(
+    frames: [StoredFrame],
+    now: Date = Date()
+) -> [TimelineZoneFill] {
+    guard frames.count > 1 else { return [] }
+
+    let neutralColor = Color(red: 0.40, green: 0.37, blue: 0.40)
+    let midColor = Color(red: 0.63, green: 0.46, blue: 0.26)
+    let recentColor = Color(red: 0.22, green: 0.62, blue: 0.48)
+
+    let fiveMinutePosition = resolveTimelineWindowStartIndex(
+        frames: frames,
+        targetAge: 5 * 60,
+        now: now
+    ).map { CGFloat($0) / CGFloat(frames.count - 1) }
+    let tenMinutePosition = resolveTimelineWindowStartIndex(
+        frames: frames,
+        targetAge: 10 * 60,
+        now: now
+    ).map { CGFloat($0) / CGFloat(frames.count - 1) }
+
+    var segments: [TimelineZoneFill] = []
+
+    if let tenMinutePosition, tenMinutePosition > 0 {
+        segments.append(
+            TimelineZoneFill(
+                start: 0,
+                end: tenMinutePosition,
+                color: neutralColor
+            )
+        )
+    }
+
+    switch (tenMinutePosition, fiveMinutePosition) {
+    case let (.some(ten), .some(five)) where ten < five:
+        segments.append(
+            TimelineZoneFill(
+                start: ten,
+                end: five,
+                color: midColor
+            )
+        )
+        segments.append(
+            TimelineZoneFill(
+                start: five,
+                end: 1,
+                color: recentColor
+            )
+        )
+    case let (.some(ten), nil):
+        segments.append(
+            TimelineZoneFill(
+                start: ten,
+                end: 1,
+                color: midColor
+            )
+        )
+    case let (_, .some(five)):
+        if five > 0 {
+            segments.append(
+                TimelineZoneFill(
+                    start: 0,
+                    end: five,
+                    color: midColor
+                )
+            )
+        }
+        segments.append(
+            TimelineZoneFill(
+                start: five,
+                end: 1,
+                color: recentColor
+            )
+        )
+    default:
+        segments.append(
+            TimelineZoneFill(
+                start: 0,
+                end: 1,
+                color: neutralColor
+            )
+        )
+    }
+
+    return segments.filter { $0.end > $0.start }
+}
+
+private func formatTimelineMarkerLabel(targetAge: TimeInterval, targetDate: Date) -> String {
+    if targetAge < 60 * 60 {
+        let totalMinutes = Int(targetAge / 60)
+        return "\(totalMinutes)min"
+    }
+
+    if targetAge <= 2 * 60 * 60 {
+        let totalHours = Int(targetAge / 3600)
+        return "\(totalHours)h"
+    }
+
+    return timelineAbsoluteTimeFormatter.string(from: targetDate)
 }
