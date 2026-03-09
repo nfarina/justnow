@@ -2,6 +2,8 @@
 
 This document is for maintainers preparing official macOS builds for GitHub Releases.
 
+GitHub Actions no longer builds release artefacts for this repo. Releases are built, notarised and uploaded locally.
+
 ## Local packaging
 
 You can build locally without GitHub Actions using:
@@ -24,35 +26,64 @@ For upload-ready builds, pass Developer ID signing details to the script:
 ./Scripts/local-release-build.sh [version] --distribution --identity "Developer ID Application: Name (TEAMID)" --team TEAMID
 ```
 
-The distribution mode signs the app binary, app bundle and `.dmg`, then verifies signatures.
+The distribution mode mirrors the archived hosted release flow: it signs the app binary first, then the app bundle, then the `.dmg`, and verifies signatures along the way.
 
-## GitHub Actions release workflow
+To produce a locally notarised and stapled DMG, add App Store Connect API key details:
 
-Release builds are published from version tags via `.github/workflows/release.yml`.
+```bash
+./Scripts/local-release-build.sh [version] \
+  --distribution \
+  --notarize \
+  --identity "Developer ID Application: Name (TEAMID)" \
+  --team TEAMID \
+  --api-key /path/to/AuthKey_KEYID.p8 \
+  --api-key-id KEYID \
+  --api-issuer ISSUER-UUID
+```
 
-Required repository secrets for CI signing/notarisation:
+If you are using an Individual App Store Connect API key, omit `--api-issuer`.
 
-- `APPLE_TEAM_ID`
-- `APPLE_SIGNING_IDENTITY`
-- `APPLE_SIGNING_CERTIFICATE_P12` (base64-encoded `.p12`)
-- `APPLE_SIGNING_CERTIFICATE_PASSWORD`
-- `APPLE_KEYCHAIN_PASSWORD`
-- `APPLE_API_KEY` (base64-encoded `.p8`)
-- `APPLE_API_KEY_ID`
-- `APPLE_API_KEY_ISSUER_ID`
+Local notarisation prerequisites:
 
-With these configured, CI:
+- an imported Developer ID Application certificate in your keychain
+- an App Store Connect API key (`.p8`)
+- the API key ID
+- the Developer Team ID
+- the issuer ID for Team API keys
 
-- builds the app
-- applies release signing
-- creates `.zip` and stylised `.dmg`
-- notarises and staples the `.dmg`
-- uploads artifacts to the release
+## Local publish flow
 
-## GitHub runner compatibility
+Use the local publish helper when you want to upload release artefacts to GitHub:
 
-The release workflow supports hosted macOS runners that may be on an older SDK:
+```bash
+./Scripts/local-release-publish.sh v0.1.1 \
+  --title "JustNow v0.1.1" \
+  --identity "Developer ID Application: Name (TEAMID)" \
+  --team TEAMID \
+  --api-key /path/to/AuthKey_KEYID.p8 \
+  --api-key-id KEYID \
+  --api-issuer ISSUER-UUID
+```
 
-- compatibility flags are injected for `macos-15` runners
-- `LEGACY_MACOS_UI` is defined so UI code can compile when newer APIs are not available
-- strict-concurrency checks are set to a compatibility level to avoid false CI failures
+What the publish helper does:
+
+- requires the tag to already exist on `origin`
+- checks that the tag matches the Xcode `MARKETING_VERSION` and that `CURRENT_PROJECT_VERSION` is consistent across configs
+- builds a local signed, notarised and stapled `.zip` and `.dmg`
+- creates the GitHub release if needed, otherwise uploads with `--clobber`
+- prints the final GitHub release URL
+
+Optional publish flags:
+
+- `--notes-file <path>` to use custom release notes
+- `--draft` to keep the release as a draft
+- `--prerelease` to mark it as a prerelease
+- `--skip-build` to upload existing `dist/` artefacts without rebuilding
+
+## Archived workflow
+
+The previous GitHub-hosted release build workflow has been archived to:
+
+- `.github/archived-workflows/release.yml.disabled`
+
+This keeps the old CI recipe for reference while preventing tag pushes from producing hosted release artefacts.

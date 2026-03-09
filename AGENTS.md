@@ -33,7 +33,36 @@ To build distribution-ready artifacts (Developer ID signing) locally:
 ./Scripts/local-release-build.sh [version] --distribution --identity "Developer ID Application: Team Name (TEAMID)" --team TEAMID
 ```
 
+To build a locally notarised and stapled DMG:
+
+```bash
+./Scripts/local-release-build.sh [version] \
+  --distribution \
+  --notarize \
+  --identity "Developer ID Application: Team Name (TEAMID)" \
+  --team TEAMID \
+  --api-key /path/to/AuthKey_KEYID.p8 \
+  --api-key-id KEYID \
+  --api-issuer ISSUER-UUID
+```
+
+If the App Store Connect key is an Individual key, omit `--api-issuer`.
+
 Artifacts are written to `dist/` and can be uploaded directly to GitHub Releases.
+
+To build and upload a GitHub release from this machine:
+
+```bash
+./Scripts/local-release-publish.sh vX.Y.Z \
+  --title "JustNow vX.Y.Z" \
+  --identity "Developer ID Application: Team Name (TEAMID)" \
+  --team TEAMID \
+  --api-key /path/to/AuthKey_KEYID.p8 \
+  --api-key-id KEYID \
+  --api-issuer ISSUER-UUID
+```
+
+This repo no longer uses GitHub Actions to build release artefacts. The old workflow has been archived under `.github/archived-workflows/`.
 
 After every successful build, always install and launch from `/Applications/` before reporting completion. Screen Recording permission is tied to the app location.
 
@@ -47,11 +76,6 @@ open /Applications/JustNow.app
 ```
 
 If `open` fails in CLI contexts, use `xcodebuildmcp macos launch --app-path "/Applications/JustNow.app"`.
-
-Release CI note:
-
-GitHub Actions currently may run hosted builds on `macos-15` (SDK 15.x).
-The release workflow uses a compatibility compile path for this runner so the project can build without `GlassEffect` APIs unavailable on that SDK.
 
 Release process and signing/deployment details are documented in:
 

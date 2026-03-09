@@ -38,6 +38,7 @@ playground.xcworkspace
 *.ipa
 *.dSYM.zip
 *.dSYM
+dist/
 
 # Codex
 .codex/

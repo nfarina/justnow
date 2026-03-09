@@ -58,10 +58,14 @@ Latest release is now:
 
 - `v0.1.0` (download from GitHub Releases)
 
+Release artefacts are built and notarised locally, then uploaded to GitHub Releases from the maintainer machine rather than from GitHub Actions.
+
 ## Licence
 
 For distribution and maintainer release packaging details, see:
 
 - `Docs/release-and-distribution.md`
+
+Local distribution builds can now also be notarised with `Scripts/local-release-build.sh --notarize`, and GitHub release uploads can be done with `Scripts/local-release-publish.sh`; see the release doc for the full commands and required credentials.
 
 MIT
