@@ -35,12 +35,21 @@ class ScreenCaptureManager: NSObject {
     private(set) var isCapturing = false
     private(set) var captureInterval: TimeInterval = 1.0
 
+    static func hasScreenRecordingPermission() -> Bool {
+        CGPreflightScreenCaptureAccess()
+    }
+
+    static func requestScreenRecordingPermission() -> Bool {
+        CGRequestScreenCaptureAccess()
+    }
+
     func startCapture() async throws {
         // Stop any existing capture
         stopCaptureSync()
 
-        // Request permission
-        guard CGRequestScreenCaptureAccess() else {
+        // Permission requests are handled by the app launch flow so we do not
+        // trigger a second overlapping prompt while starting capture.
+        guard Self.hasScreenRecordingPermission() else {
             throw CaptureError.permissionDenied
         }
 

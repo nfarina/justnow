@@ -68,6 +68,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, ScreenCaptureDelegate, NSMen
     private var wasCapturingBeforeSession = false
     private var isPausedForSession = false
     private var idleTransitionTimer: Timer?
+    private var didRequestScreenRecordingPermissionThisLaunch = false
 
     private let idleThreshold: TimeInterval = 60
     private let inputPolicyUpdateInterval: TimeInterval = 1
@@ -99,6 +100,12 @@ class AppDelegate: NSObject, NSApplicationDelegate, ScreenCaptureDelegate, NSMen
         let ocrIndexingPolicy: OCRIndexingPolicy
         let shouldPreventAppNap: Bool
         let isIdle: Bool
+    }
+
+    private enum LaunchPermissionState {
+        case granted
+        case deniedAfterSystemPrompt
+        case deniedPreviously
     }
 
     private enum MenuItemTag {
@@ -242,17 +249,25 @@ class AppDelegate: NSObject, NSApplicationDelegate, ScreenCaptureDelegate, NSMen
                 return
             }
 
-            do {
-                try await captureManager.startCapture()
-                updateCaptureStatus("Active")
-                lastAppliedPolicy = nil
-                updateCapturePolicy()
-            } catch CaptureError.permissionDenied {
+            switch resolveLaunchPermissionState() {
+            case .granted:
+                do {
+                    try await captureManager.startCapture()
+                    updateCaptureStatus("Active")
+                    lastAppliedPolicy = nil
+                    updateCapturePolicy()
+                } catch CaptureError.permissionDenied {
+                    updateCaptureStatus("No Permission")
+                    showPermissionAlert()
+                } catch {
+                    updateCaptureStatus("Error")
+                    showErrorAlert(error)
+                }
+            case .deniedAfterSystemPrompt:
+                updateCaptureStatus("No Permission")
+            case .deniedPreviously:
                 updateCaptureStatus("No Permission")
                 showPermissionAlert()
-            } catch {
-                updateCaptureStatus("Error")
-                showErrorAlert(error)
             }
         }
     }
@@ -812,6 +827,21 @@ class AppDelegate: NSObject, NSApplicationDelegate, ScreenCaptureDelegate, NSMen
 
         button.imagePosition = .imageOnly
         button.title = ""
+    }
+
+    private func resolveLaunchPermissionState() -> LaunchPermissionState {
+        if ScreenCaptureManager.hasScreenRecordingPermission() {
+            return .granted
+        }
+
+        guard !didRequestScreenRecordingPermissionThisLaunch else {
+            return .deniedPreviously
+        }
+
+        didRequestScreenRecordingPermissionThisLaunch = true
+        return ScreenCaptureManager.requestScreenRecordingPermission()
+            ? .granted
+            : .deniedAfterSystemPrompt
     }
 
     private func showPermissionAlert() {
