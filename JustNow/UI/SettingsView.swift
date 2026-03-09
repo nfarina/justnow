@@ -162,8 +162,8 @@ struct SettingsView: View {
                         keyCode: $shortcutKeyCode,
                         modifiers: $shortcutModifiers
                     )
-                    .onChange(of: shortcutKeyCode) { onShortcutChanged?() }
-                    .onChange(of: shortcutModifiers) { onShortcutChanged?() }
+                    .onChange(of: shortcutKeyCode) { _, _ in onShortcutChanged?() }
+                    .onChange(of: shortcutModifiers) { _, _ in onShortcutChanged?() }
                 }
                 Text("Press **Escape** to dismiss the overlay")
                     .font(.caption)

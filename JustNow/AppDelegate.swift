@@ -214,6 +214,15 @@ class AppDelegate: NSObject, NSApplicationDelegate, ScreenCaptureDelegate, NSMen
         }
     }
 
+    func makeSettingsView() -> SettingsView {
+        SettingsView(
+            frameBuffer: frameBuffer,
+            onShortcutChanged: { [weak self] in
+                self?.registerHotKey()
+            }
+        )
+    }
+
     private func setupCapture() {
         captureManager = ScreenCaptureManager()
 
@@ -605,12 +614,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, ScreenCaptureDelegate, NSMen
             defer: false
         )
         window.title = "JustNow Settings"
-        window.contentView = NSHostingView(rootView: SettingsView(
-            frameBuffer: frameBuffer,
-            onShortcutChanged: { [weak self] in
-                self?.registerHotKey()
-            }
-        ))
+        window.contentView = NSHostingView(rootView: makeSettingsView())
         window.center()
         window.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)

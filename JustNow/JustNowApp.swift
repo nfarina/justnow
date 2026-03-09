@@ -11,7 +11,7 @@ struct JustNowApp: App {
 
     var body: some Scene {
         Settings {
-            SettingsView()
+            appDelegate.makeSettingsView()
         }
     }
 }
