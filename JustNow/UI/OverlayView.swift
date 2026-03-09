@@ -608,9 +608,11 @@ private struct TimelineSlider: View {
     }
 
     private var colourSegments: [TimelineZoneFill] {
-        timelineColourSegments(
+        // Use the 5min marker's exact position so the colour border aligns perfectly
+        let fiveMinPosition = timelineMarkers.first(where: { $0.targetAge == 5 * 60 })?.position
+        return timelineColourSegments(
             frames: displayedFrames,
-            now: viewModel.timelineReferenceDate
+            borderPosition: fiveMinPosition
         )
     }
 
@@ -775,12 +777,25 @@ private struct SliderTrack: View {
                             .fill(Color.white.opacity(0.05))
                             .frame(height: trackHeight)
                     } else {
-                        ForEach(colourSegments) { fill in
-                            Rectangle()
-                                .fill(fill.color.opacity(0.88))
-                                .frame(width: max(0, (fill.end - fill.start) * width), height: trackHeight)
-                                .offset(x: fill.start * width)
+                        ZStack(alignment: .leading) {
+                            ForEach(colourSegments) { fill in
+                                if fill.start > 0 {
+                                    RoundedRectangle(cornerRadius: trackHeight / 2, style: .continuous)
+                                        .fill(fill.color.opacity(0.88))
+                                        .frame(
+                                            width: max(0, width - fill.start * width),
+                                            height: trackHeight
+                                        )
+                                        .offset(x: fill.start * width)
+                                } else {
+                                    // Fill the full width; later segments paint over the right portion
+                                    Rectangle()
+                                        .fill(fill.color.opacity(0.88))
+                                        .frame(height: trackHeight)
+                                }
+                            }
                         }
+                        .frame(width: width, height: trackHeight)
                         .clipShape(RoundedRectangle(cornerRadius: trackHeight / 2, style: .continuous))
 
                         RoundedRectangle(cornerRadius: trackHeight / 2, style: .continuous)
@@ -1114,84 +1129,37 @@ private func isTimelineMarkerRepresentative(
 
 private func timelineColourSegments(
     frames: [StoredFrame],
-    now: Date = Date()
+    borderPosition: CGFloat?
 ) -> [TimelineZoneFill] {
     guard frames.count > 1 else { return [] }
 
-    let neutralColor = Color(red: 0.40, green: 0.37, blue: 0.40)
-    let midColor = Color(red: 0.63, green: 0.46, blue: 0.26)
-    let recentColor = Color(red: 0.22, green: 0.62, blue: 0.48)
-
-    let fiveMinutePosition = resolveTimelineWindowStartIndex(
-        frames: frames,
-        targetAge: 5 * 60,
-        now: now
-    ).map { CGFloat($0) / CGFloat(frames.count - 1) }
-    let tenMinutePosition = resolveTimelineWindowStartIndex(
-        frames: frames,
-        targetAge: 10 * 60,
-        now: now
-    ).map { CGFloat($0) / CGFloat(frames.count - 1) }
+    // Darker grey on left (oldest), lighter grey on right (newest/recent)
+    let olderColor = Color(red: 0.30, green: 0.28, blue: 0.31)
+    let newerColor = Color(red: 0.55, green: 0.52, blue: 0.56)
 
     var segments: [TimelineZoneFill] = []
 
-    if let tenMinutePosition, tenMinutePosition > 0 {
+    if let borderPosition, borderPosition > 0 {
         segments.append(
             TimelineZoneFill(
                 start: 0,
-                end: tenMinutePosition,
-                color: neutralColor
-            )
-        )
-    }
-
-    switch (tenMinutePosition, fiveMinutePosition) {
-    case let (.some(ten), .some(five)) where ten < five:
-        segments.append(
-            TimelineZoneFill(
-                start: ten,
-                end: five,
-                color: midColor
+                end: borderPosition,
+                color: olderColor
             )
         )
         segments.append(
             TimelineZoneFill(
-                start: five,
+                start: borderPosition,
                 end: 1,
-                color: recentColor
+                color: newerColor
             )
         )
-    case let (.some(ten), nil):
-        segments.append(
-            TimelineZoneFill(
-                start: ten,
-                end: 1,
-                color: midColor
-            )
-        )
-    case let (_, .some(five)):
-        if five > 0 {
-            segments.append(
-                TimelineZoneFill(
-                    start: 0,
-                    end: five,
-                    color: midColor
-                )
-            )
-        }
-        segments.append(
-            TimelineZoneFill(
-                start: five,
-                end: 1,
-                color: recentColor
-            )
-        )
-    default:
+    } else {
         segments.append(
             TimelineZoneFill(
                 start: 0,
                 end: 1,
-                color: neutralColor
+                color: newerColor
             )
         )
     }
