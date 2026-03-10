@@ -13,6 +13,7 @@ All notable changes to JustNow will be documented in this file.
 
 ### Changed
 - Updated the local release tooling to re-sign Sparkle helper binaries for distribution builds and regenerate the public appcast for stable GitHub releases.
+- Updated the local release tooling to deploy the refreshed public site to Cloudflare Pages as part of stable release publishing.
 
 ## [0.1] - 2026-03-08
 

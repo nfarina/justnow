@@ -85,6 +85,6 @@ For distribution and maintainer release packaging details, see:
 - `Docs/site-and-updates.md`
 - `Docs/cloudflare-pages.md`
 
-Local distribution builds can now also be notarised with `Scripts/local-release-build.sh --notarize`, and `Scripts/local-release-publish.sh` can publish GitHub Releases, refresh `site/releases.json`, regenerate release notes, and rebuild `site/appcast.xml` for stable releases; see the release doc for the full commands and required credentials.
+Local distribution builds can now also be notarised with `Scripts/local-release-build.sh --notarize`, and `Scripts/local-release-publish.sh` can publish GitHub Releases, refresh `site/releases.json`, regenerate release notes, rebuild `site/appcast.xml`, and deploy `site/` to Cloudflare Pages for stable releases; see the release doc for the full commands and required credentials.
 
 MIT

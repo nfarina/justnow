@@ -96,6 +96,7 @@ Release process and signing/deployment details are documented in:
 - `site/releases.json`: source-of-truth public release metadata
 - `site/appcast.xml`: Sparkle appcast published at the site root
 - `wrangler.jsonc`: Cloudflare Pages project configuration for the public site
+- `Scripts/deploy-public-site.sh`: Cloudflare Pages deployment helper for the public site
 
 ## Notes
 
@@ -105,6 +106,7 @@ Release process and signing/deployment details are documented in:
 - Keep GitHub Releases as the canonical home for signed app artefacts; the public site under `site/` should link to those assets rather than duplicating release binaries.
 - The public site is intended for a root-mounted custom domain; root-absolute paths in `site/` are intentional unless deployment assumptions change.
 - Sparkle is integrated in-app; stable release publishing should refresh `site/releases.json`, regenerate `site/releases/`, and rebuild `site/appcast.xml` from the uploaded archive.
+- Stable release publishing should also deploy `site/` to Cloudflare Pages unless `--skip-site-deploy` is explicitly requested.
 - Cloudflare Pages is the intended host for `justnow.tk.sg`; use `wrangler.jsonc` and `Docs/cloudflare-pages.md` as the source of truth for site deployment.
 - Keep menu bar recording controls visually in sync: when pause/resume state changes, update both the menu item and the status item icon.
 - If UI copy mentions a nominal capture interval, sanity-check it against adaptive throttling and deduplicated browsing so the user-facing wording still matches observed behaviour.

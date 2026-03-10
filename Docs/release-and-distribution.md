@@ -77,6 +77,7 @@ What the publish helper does:
 - creates the GitHub release if needed, otherwise uploads with `--clobber`
 - reads back the published GitHub release metadata and notes
 - for stable releases, refreshes `site/releases.json`, regenerates `site/releases/index.html`, and rebuilds `site/appcast.xml`
+- deploys `site/` to Cloudflare Pages so the public appcast and release notes go live with the release
 - prints the final GitHub release URL
 
 Draft and prerelease GitHub releases intentionally skip the public site and Sparkle appcast update steps for now. The main feed only tracks stable releases.
@@ -87,6 +88,7 @@ Optional publish flags:
 - `--draft` to keep the release as a draft
 - `--prerelease` to mark it as a prerelease
 - `--skip-build` to upload existing `dist/` artefacts without rebuilding
+- `--skip-site-deploy` to avoid deploying `site/` to Cloudflare Pages
 
 ## Archived workflow
 

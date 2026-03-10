@@ -19,6 +19,7 @@ NOTES_FILE=""
 DRAFT="false"
 PRERELEASE="false"
 SKIP_BUILD="false"
+SKIP_SITE_DEPLOY="false"
 SIGNING_IDENTITY="${APPLE_SIGNING_IDENTITY:-}"
 DEVELOPMENT_TEAM="${APPLE_TEAM_ID:-}"
 API_KEY_PATH="${APPLE_API_KEY_PATH:-}"
@@ -38,6 +39,7 @@ Options:
   --draft            Create or keep the GitHub release as a draft
   --prerelease       Mark the GitHub release as a prerelease
   --skip-build       Upload existing dist artifacts without rebuilding
+  --skip-site-deploy Regenerate site files but do not deploy them to Cloudflare Pages
   --identity <name>  Developer ID identity for signing
   --team <id>        Developer Team ID
   --api-key <path>   App Store Connect API key (.p8) path
@@ -68,6 +70,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     --skip-build)
       SKIP_BUILD="true"
+      shift
+      ;;
+    --skip-site-deploy)
+      SKIP_SITE_DEPLOY="true"
       shift
       ;;
     --identity)
@@ -272,6 +278,15 @@ if value:
 
     if ! "${SCRIPT_DIR}/generate-sparkle-appcast.sh" "${TAG}"; then
       echo "Warning: Failed to regenerate site/appcast.xml for ${TAG}" >&2
+    fi
+
+    if [ "${SKIP_SITE_DEPLOY}" = "true" ]; then
+      echo "Skipping Cloudflare Pages deployment because --skip-site-deploy was provided."
+    else
+      "${SCRIPT_DIR}/deploy-public-site.sh" \
+        --branch main \
+        --commit-hash "$(git rev-parse HEAD)" \
+        --commit-message "Release ${TAG}"
     fi
   else
     echo "Skipping site metadata and Sparkle appcast updates because release notes are empty."

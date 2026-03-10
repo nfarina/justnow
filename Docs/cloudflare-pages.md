@@ -7,6 +7,7 @@ This project uses Cloudflare Pages for the public site hosted at `https://justno
 - `wrangler.jsonc` defines the Pages project name as `justnow-site`.
 - The deploy root is `site/`.
 - `site/_headers` adds basic security headers and keeps the Sparkle appcast cache short.
+- `Scripts/deploy-public-site.sh` deploys the generated site to Cloudflare Pages from this machine.
 
 ## First-time setup
 
@@ -36,6 +37,16 @@ This project uses Cloudflare Pages for the public site hosted at `https://justno
    - `https://justnow.tk.sg/`
    - `https://justnow.tk.sg/releases/`
    - `https://justnow.tk.sg/appcast.xml`
+
+## Deploying updates
+
+To deploy the current checked-out `site/` directory manually:
+
+```bash
+./Scripts/deploy-public-site.sh
+```
+
+Stable runs of `./Scripts/local-release-publish.sh` call this helper automatically unless `--skip-site-deploy` is passed.
 
 ## Notes
 
