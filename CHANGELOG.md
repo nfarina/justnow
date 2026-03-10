@@ -4,6 +4,8 @@ All notable changes to JustNow will be documented in this file.
 
 ## [Unreleased]
 
+## [0.1.2] - 2026-03-10
+
 ### Added
 - Added Sparkle-based in-app update support, including a new Settings software update section and a menu bar `Check for Updates…` action.
 - Added an in-repo `site/` directory for the public app page, release notes, and the Sparkle appcast.
