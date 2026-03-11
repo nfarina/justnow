@@ -10,10 +10,22 @@
   },
   "releases": [
     {
+      "tag": "v0.1.3",
+      "version": "0.1.3",
+      "published_at": "2026-03-11",
+      "status": "Current public build",
+      "notes": [
+        "Tidy the settings row and fix worktree builds by @yjsoon in https://github.com/yjsoon/justnow/pull/4",
+        "Improve screen recording recovery and rewind history controls by @yjsoon in https://github.com/yjsoon/justnow/pull/5",
+        "Fix Screen Recording permission follow-up by @yjsoon in https://github.com/yjsoon/justnow/pull/6",
+        "@yjsoon made their first contribution in https://github.com/yjsoon/justnow/pull/4"
+      ]
+    },
+    {
       "tag": "v0.1.2",
       "version": "0.1.2",
       "published_at": "2026-03-10",
-      "status": "Current public build",
+      "status": "Previous release",
       "notes": [
         "Added Sparkle-based in-app update support, including a new Settings software update section and a menu bar `Check for Updates…` action.",
         "Added an in-repo public site for the app page, release notes, and Sparkle appcast at `justnow.tk.sg`.",
