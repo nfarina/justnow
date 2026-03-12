@@ -92,13 +92,14 @@ Optional publish flags:
 - `--skip-build` to upload existing `dist/` artefacts without rebuilding
 - `--skip-site-deploy` to avoid deploying `site/` to Cloudflare Pages
 
-## Archived workflow
+## Archived workflows
 
-The previous GitHub-hosted release build workflow has been archived to:
+The previous GitHub-hosted release and site deployment workflows have been archived to:
 
 - `.github/archived-workflows/release.yml.disabled`
+- `.github/archived-workflows/site.yml.disabled`
 
-This keeps the old CI recipe for reference while preventing tag pushes from producing hosted release artefacts.
+This keeps the old CI recipes for reference while preventing redundant GitHub-hosted publishing paths from failing alongside the local Cloudflare release flow.
 
 ## Public site
 
@@ -109,4 +110,4 @@ The repo also includes a static site for the product page, release notes, and fu
 - `site/releases/`
 - `site/appcast.xml`
 
-GitHub Actions may deploy that static site to GitHub Pages, but release binaries should continue to be built and notarised locally.
+The public site is deployed from the local release publish flow to Cloudflare Pages. GitHub Pages is no longer part of the supported release path.

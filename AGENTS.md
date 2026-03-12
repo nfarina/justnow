@@ -62,7 +62,7 @@ To build and upload a GitHub release from this machine:
   --api-issuer ISSUER-UUID
 ```
 
-This repo no longer uses GitHub Actions to build release artefacts. The old workflow has been archived under `.github/archived-workflows/`.
+This repo no longer uses GitHub Actions for release artefacts or public-site deployment. Archived workflows live under `.github/archived-workflows/`.
 
 Local release credentials live in `.env.release.local` (gitignored). The local release scripts auto-load it if present, so future agents should check there first for `APPLE_SIGNING_IDENTITY`, `APPLE_TEAM_ID`, `APPLE_API_KEY_PATH`, `APPLE_API_KEY_ID`, and `APPLE_API_KEY_ISSUER_ID`.
 
