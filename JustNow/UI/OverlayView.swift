@@ -89,6 +89,7 @@ class OverlayViewModel {
     let timelineFrames: [StoredFrame]
     let searchableFrames: [StoredFrame]
     let frameBuffer: FrameBuffer
+    let recentTimelineWindow: TimeInterval
     let rewindHistoryOption: RewindHistoryOption
     let timelineReferenceDate: Date
     let onDismiss: () -> Void
@@ -119,12 +120,14 @@ class OverlayViewModel {
         timelineFrames: [StoredFrame],
         searchableFrames: [StoredFrame],
         frameBuffer: FrameBuffer,
+        recentTimelineWindow: TimeInterval,
         rewindHistoryOption: RewindHistoryOption,
         onDismiss: @escaping () -> Void
     ) {
         self.timelineFrames = timelineFrames
         self.searchableFrames = searchableFrames
         self.frameBuffer = frameBuffer
+        self.recentTimelineWindow = recentTimelineWindow
         self.rewindHistoryOption = rewindHistoryOption
         self.timelineReferenceDate = Date()
         self.onDismiss = onDismiss
@@ -665,16 +668,26 @@ private struct TimelineSlider: View {
         guard !(viewModel.isSearching && !viewModel.searchQuery.isEmpty) else { return [] }
         return timelineLandmarkMarkers(
             frames: displayedFrames,
+            recentWindow: viewModel.recentTimelineWindow,
             now: viewModel.timelineReferenceDate
         )
     }
 
     private var colourSegments: [TimelineZoneFill] {
-        // Use the 5min marker's exact position so the colour border aligns perfectly
-        let fiveMinPosition = timelineMarkers.first(where: { $0.targetAge == 5 * 60 })?.position
+        guard !(viewModel.isSearching && !viewModel.searchQuery.isEmpty) else {
+            return timelineColourSegments(frames: displayedFrames, borderPosition: nil)
+        }
+
+        let recentWindowPosition =
+            timelineMarkers.first(where: { $0.targetAge == viewModel.recentTimelineWindow })?.position
+            ?? resolveTimelineMarkerPosition(
+                frames: displayedFrames,
+                targetAge: viewModel.recentTimelineWindow,
+                now: viewModel.timelineReferenceDate
+            )
         return timelineColourSegments(
             frames: displayedFrames,
-            borderPosition: fiveMinPosition
+            borderPosition: recentWindowPosition
         )
     }
 
@@ -1064,25 +1077,35 @@ private func resolveTimelineMarkerFrameIndex(
     }
 }
 
-private func resolveTimelineWindowStartIndex(
+private func resolveTimelineMarkerPosition(
     frames: [StoredFrame],
     targetAge: TimeInterval,
     now: Date = Date()
-) -> Int? {
+) -> CGFloat? {
     guard frames.count > 1 else { return nil }
 
     let targetDate = now.addingTimeInterval(-targetAge)
-    return frames.firstIndex(where: { $0.timestamp >= targetDate })
+    guard let frameIndex = resolveTimelineMarkerFrameIndex(
+        frames: frames,
+        targetDate: targetDate
+    ) else { return nil }
+
+    return CGFloat(frameIndex) / CGFloat(frames.count - 1)
 }
 
 private func timelineLandmarkMarkers(
     frames: [StoredFrame],
+    recentWindow: TimeInterval,
     now: Date = Date()
 ) -> [TimelineMarker] {
     guard frames.count > 1, let oldest = frames.first?.timestamp else { return [] }
 
     let oldestAge = now.timeIntervalSince(oldest)
-    let targets = timelineMarkerTargets(upTo: oldestAge, now: now)
+    let targets = timelineMarkerTargets(
+        upTo: oldestAge,
+        recentWindow: recentWindow,
+        now: now
+    )
     var markersByFrameIndex: [Int: TimelineMarker] = [:]
 
     for target in targets {
@@ -1118,11 +1141,19 @@ private func timelineLandmarkMarkers(
     return markersByFrameIndex.values.sorted { $0.position < $1.position }
 }
 
-private func timelineMarkerTargets(upTo oldestAge: TimeInterval, now: Date) -> [TimelineMarkerTarget] {
+private func timelineMarkerTargets(
+    upTo oldestAge: TimeInterval,
+    recentWindow: TimeInterval,
+    now: Date
+) -> [TimelineMarkerTarget] {
     guard oldestAge > 0 else { return [] }
 
-    let relativeAges: [TimeInterval] = [5.0 * 60, 10.0 * 60, 30.0 * 60, 60.0 * 60, 2.0 * 60.0 * 60.0]
+    let markerAges = [5.0 * 60, 10.0 * 60, 30.0 * 60, 60.0 * 60, 2.0 * 60.0 * 60.0]
+    let preferredAges = ([recentWindow] + markerAges)
         .filter { $0 <= oldestAge }
+
+    var seenAges: Set<Int> = []
+    let relativeAges = preferredAges.filter { seenAges.insert(Int($0)).inserted }
     var targets = relativeAges.enumerated().map { index, targetAge in
         TimelineMarkerTarget(
             targetAge: targetAge,
