@@ -33,6 +33,11 @@ Developer ID signature so macOS can keep the same Screen Recording permission re
 EOF
 }
 
+die() {
+  echo "$*" >&2
+  exit 1
+}
+
 installed_leaf_authority() {
   if [ ! -e "${INSTALL_PATH}" ]; then
     return 0
@@ -124,6 +129,14 @@ if [ -n "${SIGNING_IDENTITY}" ] && [ -z "${DEVELOPMENT_TEAM}" ]; then
   DEVELOPMENT_TEAM="$(team_from_identity "${SIGNING_IDENTITY}")"
 fi
 
+if [ "${USE_NOTARIZATION}" = "true" ]; then
+  [ -n "${SIGNING_IDENTITY}" ] || die "Notarisation requires a Developer ID signing identity. Set APPLE_SIGNING_IDENTITY in ${RELEASE_ENV_FILE}, or pass --identity explicitly."
+  [ -n "${DEVELOPMENT_TEAM}" ] || die "Notarisation requires a Developer ID team. Set APPLE_TEAM_ID in ${RELEASE_ENV_FILE}, or pass --team explicitly."
+  [ -n "${API_KEY_PATH}" ] || die "Notarisation requires an App Store Connect API key path. Set APPLE_API_KEY_PATH in ${RELEASE_ENV_FILE}, or pass --api-key explicitly."
+  [ -n "${API_KEY_ID}" ] || die "Notarisation requires an App Store Connect API key ID. Set APPLE_API_KEY_ID in ${RELEASE_ENV_FILE}, or pass --api-key-id explicitly."
+  [ -f "${API_KEY_PATH}" ] || die "App Store Connect API key not found at: ${API_KEY_PATH}"
+fi
+
 if [ -z "${SIGNING_IDENTITY}" ] || [ -z "${DEVELOPMENT_TEAM}" ]; then
   if [[ "${INSTALLED_AUTHORITY}" == Developer\ ID\ Application:* ]]; then
     cat >&2 <<EOF
@@ -153,6 +166,8 @@ if [ ! -d "${APP_PATH}" ]; then
   echo "Built app not found at ${APP_PATH}" >&2
   exit 1
 fi
+
+[ -x "$(command -v trash)" ] || die "The 'trash' CLI is required to replace ${INSTALL_PATH} safely. Install it first, then rerun this helper."
 
 pkill -x "${SCHEME}" 2>/dev/null || true
 if [ -e "${INSTALL_PATH}" ]; then
