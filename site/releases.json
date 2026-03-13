@@ -10,10 +10,19 @@
   },
   "releases": [
     {
+      "tag": "v0.1.6",
+      "version": "0.1.6",
+      "published_at": "2026-03-13",
+      "status": "Current public build",
+      "notes": [
+        "Stabilise local signing for Screen Recording permissions by @yjsoon in https://github.com/yjsoon/justnow/pull/9"
+      ]
+    },
+    {
       "tag": "v0.1.5",
       "version": "0.1.5",
       "published_at": "2026-03-12",
-      "status": "Current public build",
+      "status": "Previous release",
       "notes": [
         "Fix timeline detail window mismatch by @yjsoon in https://github.com/yjsoon/justnow/pull/8"
       ]
