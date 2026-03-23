@@ -4,6 +4,17 @@ All notable changes to JustNow will be documented in this file.
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-03-23
+
+### Added
+- Added drag-to-grab text in rewind so you can draw over part of a frame and copy OCR text straight to the clipboard.
+- Added rewind settings for a copied-text confirmation sound and an optional text-grab debug preview.
+
+### Changed
+- Improved OCR quality for text grabs by using higher-quality recognition and cleaning up clipboard text before it is copied.
+- Refined the text-grab selection overlay and moved OCR feedback into the rewind footer.
+- Simplified adaptive power settings.
+
 ## [0.1.3] - 2026-03-12
 
 ### Added
