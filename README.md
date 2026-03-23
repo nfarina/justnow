@@ -1,111 +1,68 @@
 # JustNow
 
-A native macOS menu bar app that continuously captures screenshots and lets you scroll back through the last 5-10 minutes of screen history via a hotkey-triggered fullscreen overlay.
+JustNow is a native macOS menu bar app that keeps a rolling record of your recent screen history, so you can jump back to something you just saw without breaking flow.
 
-## Features
+[Download the latest release](https://github.com/yjsoon/justnow/releases/latest)
 
-- **Continuous capture**: Captures screenshots every 0.5 to 5 seconds
-- **Perceptual hashing**: Skips near-identical frames to save memory (30-50% savings)
-- **Exponential decay**: Recent frames kept at full density, older frames thinned out
-- **Recent detail**: Browse the newest 1, 2, or 5 minutes using every stored frame before older history is collapsed
-- **Battery conscious**: Can capture less often, lower image quality, and slow background indexing when power or thermal conditions tighten
-- **Fullscreen overlay**: Press ⌘⌥J to view timeline, scroll/drag to navigate
-- **Drag-to-grab text**: Draw a box over text in rewind to OCR it, tidy it up, and copy it straight to the clipboard
-- **Menu bar only**: Runs silently with no dock icon
+## Highlights
+
+- Opens a fullscreen rewind timeline from the menu bar with a configurable hotkey
+- Keeps recent history at full detail, then compacts older history automatically
+- Lets you keep between 30 minutes and 24 hours of rewind history
+- Drag over a rewind frame to OCR on-screen text and copy the cleaned result to the clipboard
+- Adapts capture behaviour when your Mac is on battery, idle, or under thermal pressure
+- Stays out of the way with a menu bar-only interface and no Dock icon
 
 ## Requirements
 
-- macOS 15+
+- macOS 15 or later
 - Screen Recording permission
 
-## Usage
+## Using JustNow
 
-1. Launch JustNow - it appears in the menu bar
-2. Grant Screen Recording permission when prompted
-3. Let it run to build up history
-4. Press **⌘⌥J** to open the timeline overlay
-5. Scroll horizontally or drag to navigate through time
-6. Drag a box over visible text to copy the cleaned-up result to the clipboard
-7. Press **Escape** to dismiss
+1. Download and open JustNow.
+2. Grant Screen Recording permission when macOS asks.
+3. Let it run in the menu bar.
+4. Press `⌘⌥J` to open the rewind timeline.
+5. Scroll or drag to move through recent history.
+6. Drag over visible text in the current frame to copy it from OCR.
+7. Press `Escape` to close the overlay.
 
-If you have just switched this Mac from an older dev-signed build to a Developer ID / notarised build and Screen Recording already appears enabled but JustNow still cannot capture, remove the `JustNow` entry from **System Settings → Privacy & Security → Screen Recording** once, then relaunch and grant access again. Later notarised updates signed with the same identity should keep working normally.
+If Screen Recording already looks enabled but JustNow still cannot capture after switching between differently signed builds, remove the `JustNow` entry in **System Settings → Privacy & Security → Screen Recording**, then relaunch and allow it again.
 
 ## Settings
 
-Access via menu bar icon → Settings:
+You can adjust:
 
-- **Capture interval**: 0.5s to 5s (default 0.5s)
-- **Newest timeline detail**: 1, 2, or 5 minutes at full capture detail
-- **Max frames**: 100 to 1200 (default 600, ~10 min at 1fps)
-- **Battery mode**: Optional cadence preservation when unplugged
-- **Copied-text sound**: Optional confirmation sound after drag-to-grab text copies successfully
+- capture interval
+- rewind history length
+- full-detail window for the newest history
+- play a copied-text sound after OCR succeeds
+- show a text-grab debug preview of the OCR crop
+- automatic power saving behaviour
+- launch on startup
+- show and hide shortcuts
 
-## Architecture
+## Building From Source
 
-```
-ScreenCaptureKit → Perceptual Hash Filter → Ring Buffer (RAM)
-                                                    ↓
-                                          Retention Manager
-                                          (exponential decay)
-```
-
-## Building
-
-For routine local reinstalls, use:
+For a normal local install:
 
 ```bash
 ./Scripts/local-install-app.sh
 ```
 
-That helper keeps the app at `/Applications/JustNow.app` and prefers a stable Developer ID signature when available, which helps macOS retain the existing Screen Recording permission record across reinstalls.
-
-If you only need to build without installing, open `JustNow.xcodeproj` in Xcode and build (⌘B), or:
+To build without installing:
 
 ```bash
 xcodebuild -scheme JustNow -configuration Release -derivedDataPath build
 ```
 
-## Testing
-
-Run the macOS unit tests with:
+To run the test suite:
 
 ```bash
 xcodebuild test -project JustNow.xcodeproj -scheme JustNow -destination 'platform=macOS'
 ```
 
-## Releases
-
-Latest release is now:
-
-- `v0.1.1` (download from GitHub Releases)
-
-Release artefacts are built and notarised locally, then uploaded to GitHub Releases from the maintainer machine rather than from GitHub Actions.
-
-## Public Site
-
-This repo now also contains a static public site under `site/`.
-
-- `site/index.html`: product landing page
-- `site/releases/`: public release notes
-- `site/appcast.xml`: Sparkle appcast served from the public site root
-
-The public site is designed to work alongside GitHub Releases:
-
-- signed `.zip` and `.dmg` artefacts stay on GitHub Releases
-- the public app page, release notes, and Sparkle appcast are published from `site/`
-- the site assumes a root-mounted custom domain, so root-absolute links are intentional
-- `wrangler.jsonc` is configured for a Cloudflare Pages project named `justnow-site`
-
-Repository builds now include Sparkle-based in-app update UI. Public Sparkle updates become fully live once a Sparkle-enabled release archive has been published and added to the appcast.
-
 ## Licence
 
-For distribution and maintainer release packaging details, see:
-
-- `Docs/release-and-distribution.md`
-- `Docs/site-and-updates.md`
-- `Docs/cloudflare-pages.md`
-
-Local distribution builds can now also be notarised with `Scripts/local-release-build.sh --notarize`, and `Scripts/local-release-publish.sh` can publish GitHub Releases, refresh `site/releases.json`, regenerate release notes, rebuild `site/appcast.xml`, and deploy `site/` to Cloudflare Pages for stable releases; see the release doc for the full commands and required credentials.
-
-MIT
+[MIT](./LICENSE)
