@@ -10,6 +10,7 @@ A native macOS menu bar app that continuously captures screenshots and lets you 
 - **Recent detail**: Browse the newest 1, 2, or 5 minutes using every stored frame before older history is collapsed
 - **Battery conscious**: Can capture less often, lower image quality, and slow background indexing when power or thermal conditions tighten
 - **Fullscreen overlay**: Press ⌘⌥J to view timeline, scroll/drag to navigate
+- **Drag-to-grab text**: Draw a box over text in rewind to OCR it, tidy it up, and copy it straight to the clipboard
 - **Menu bar only**: Runs silently with no dock icon
 
 ## Requirements
@@ -24,7 +25,8 @@ A native macOS menu bar app that continuously captures screenshots and lets you 
 3. Let it run to build up history
 4. Press **⌘⌥J** to open the timeline overlay
 5. Scroll horizontally or drag to navigate through time
-6. Press **Escape** to dismiss
+6. Drag a box over visible text to copy the cleaned-up result to the clipboard
+7. Press **Escape** to dismiss
 
 If you have just switched this Mac from an older dev-signed build to a Developer ID / notarised build and Screen Recording already appears enabled but JustNow still cannot capture, remove the `JustNow` entry from **System Settings → Privacy & Security → Screen Recording** once, then relaunch and grant access again. Later notarised updates signed with the same identity should keep working normally.
 
@@ -36,6 +38,7 @@ Access via menu bar icon → Settings:
 - **Newest timeline detail**: 1, 2, or 5 minutes at full capture detail
 - **Max frames**: 100 to 1200 (default 600, ~10 min at 1fps)
 - **Battery mode**: Optional cadence preservation when unplugged
+- **Copied-text sound**: Optional confirmation sound after drag-to-grab text copies successfully
 
 ## Architecture
 

@@ -615,6 +615,7 @@ struct InstructionsOverlay: View {
                 Spacer()
                 HStack(spacing: 16) {
                     Label("← →", systemImage: "arrow.left.arrow.right")
+                    Label("drag to grab text", systemImage: "text.viewfinder")
                     if FeatureFlags.isSearchEnabled {
                         Label("/", systemImage: "magnifyingglass")
                     }
@@ -647,18 +648,45 @@ struct FramePreviewView: View {
     let frame: StoredFrame
     let frameBuffer: FrameBuffer
 
+    @AppStorage("textGrabSoundEnabled") private var textGrabSoundEnabled: Bool = true
+    @AppStorage("textGrabDebugPreviewEnabled") private var textGrabDebugPreviewEnabled: Bool = false
     @State private var image: CGImage?
     @State private var isLoading = false
     @State private var loadFailed = false
+    @State private var textGrabBannerState: TextGrabBannerState = .hint
+    @State private var textGrabDebugSnapshot: TextGrabDebugSnapshot?
 
     var body: some View {
         Group {
             if let image = image {
-                Image(nsImage: imageFromCGImage(image))
-                    .resizable()
-                    .aspectRatio(contentMode: .fit)
-                    .clipShape(.rect(cornerRadius: 16))
-                    .shadow(color: .black.opacity(0.5), radius: 30)
+                ZStack(alignment: .topLeading) {
+                    Image(nsImage: imageFromCGImage(image))
+                        .resizable()
+                        .aspectRatio(contentMode: .fit)
+                        .overlay {
+                            TextGrabSelectionOverlay(
+                                image: image,
+                                soundEnabled: textGrabSoundEnabled,
+                                debugCaptureEnabled: textGrabDebugPreviewEnabled,
+                                bannerState: $textGrabBannerState,
+                                debugSnapshot: $textGrabDebugSnapshot
+                            )
+                            .id(frame.id)
+                        }
+                        .overlay(alignment: .bottomLeading) {
+                            if textGrabDebugPreviewEnabled, let textGrabDebugSnapshot {
+                                TextGrabDebugPreview(snapshot: textGrabDebugSnapshot)
+                                    .padding(20)
+                                    .allowsHitTesting(false)
+                            }
+                        }
+
+                    TextGrabBanner(state: textGrabBannerState)
+                        .padding(20)
+                        .allowsHitTesting(false)
+                }
+                .clipShape(.rect(cornerRadius: 16))
+                .shadow(color: .black.opacity(0.5), radius: 30)
             } else {
                 RoundedRectangle(cornerRadius: 16)
                     .fill(.white.opacity(0.05))
@@ -684,6 +712,8 @@ struct FramePreviewView: View {
             isLoading = true
             loadFailed = false
             image = nil
+            textGrabBannerState = .hint
+            textGrabDebugSnapshot = nil
 
             do {
                 let loadedImage = try await frameBuffer.getFullImage(for: frame)
@@ -698,6 +728,11 @@ struct FramePreviewView: View {
 
             guard !Task.isCancelled else { return }
             isLoading = false
+        }
+        .onChange(of: textGrabDebugPreviewEnabled) { _, isEnabled in
+            if !isEnabled {
+                textGrabDebugSnapshot = nil
+            }
         }
     }
 }

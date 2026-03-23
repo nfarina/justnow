@@ -3,22 +3,175 @@
 //  JustNow
 //
 
+import Foundation
+import ImageIO
 import Vision
+import VisionKit
 import os.log
 
-/// Performs on-demand OCR using Vision framework
+enum TextRecognitionMode: Sendable {
+    case searchIndex
+    case selection
+}
+
+/// Performs OCR for both background search indexing and user-driven text grabs.
 nonisolated enum TextRecognitionManager {
     private static let logger = Logger(subsystem: "sg.tk.JustNow", category: "TextRecognition")
 
-    /// Extracts text from a CGImage using VNRecognizeTextRequest
+    /// Fast OCR used for background indexing.
     @concurrent
     @Sendable
     static func extractText(from image: CGImage) async -> String {
+        await extractText(from: image, mode: .searchIndex)
+    }
+
+    @concurrent
+    @Sendable
+    static func extractText(from image: CGImage, mode: TextRecognitionMode) async -> String {
+        guard !Task.isCancelled else { return "" }
+
+        switch mode {
+        case .searchIndex:
+            let text = await extractVisionText(
+                from: image,
+                recognitionLevel: .fast,
+                usesLanguageCorrection: false,
+                automaticallyDetectsLanguage: false
+            )
+            return collapseInlineWhitespace(text)
+        case .selection:
+            if let transcript = await extractImageAnalyzerTranscript(from: image) {
+                let normalisedTranscript = normaliseClipboardText(transcript)
+                if !normalisedTranscript.isEmpty {
+                    Self.logger.debug("Selection OCR resolved via ImageAnalyzer")
+                    return normalisedTranscript
+                }
+            }
+
+            let text = await extractVisionText(
+                from: image,
+                recognitionLevel: .accurate,
+                usesLanguageCorrection: true,
+                automaticallyDetectsLanguage: true
+            )
+            return normaliseClipboardText(text)
+        }
+    }
+
+    static func normaliseClipboardText(_ text: String) -> String {
+        let normalisedLineEndings = text
+            .replacingOccurrences(of: "\r\n", with: "\n")
+            .replacingOccurrences(of: "\r", with: "\n")
+
+        let rawLines = normalisedLineEndings.components(separatedBy: "\n")
+        var result = ""
+        var previousLine = ""
+        var shouldPreserveParagraphBreak = false
+
+        for rawLine in rawLines {
+            let line = collapseInlineWhitespace(rawLine)
+
+            if line.isEmpty {
+                shouldPreserveParagraphBreak = !result.isEmpty
+                continue
+            }
+
+            if result.isEmpty {
+                result = line
+                previousLine = line
+                shouldPreserveParagraphBreak = false
+                continue
+            }
+
+            if previousLine.hasSuffix("-"), line.first?.isLetter == true {
+                result.removeLast()
+                result.append(contentsOf: line)
+            } else if shouldPreserveParagraphBreak || shouldKeepLineBreak(between: previousLine, and: line) {
+                result.append("\n")
+                result.append(contentsOf: line)
+            } else {
+                result.append(" ")
+                result.append(contentsOf: line)
+            }
+
+            previousLine = line
+            shouldPreserveParagraphBreak = false
+        }
+
+        return result.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    /// Searches for text in a frame, returns true if found.
+    @concurrent
+    static func frameContainsText(_ searchText: String, in image: CGImage) async -> Bool {
+        let extractedText = await extractText(from: image)
+        let contains = extractedText.localizedCaseInsensitiveContains(searchText)
+        if contains {
+            Self.logger.info("Found '\(searchText)' in frame")
+        }
+        return contains
+    }
+
+    private static func collapseInlineWhitespace(_ text: String) -> String {
+        text
+            .split(whereSeparator: \.isWhitespace)
+            .joined(separator: " ")
+    }
+
+    private static func shouldKeepLineBreak(between previousLine: String, and nextLine: String) -> Bool {
+        looksLikeListItem(previousLine) || looksLikeListItem(nextLine) || previousLine.hasSuffix(":")
+    }
+
+    private static func looksLikeListItem(_ line: String) -> Bool {
+        let trimmed = line.trimmingCharacters(in: .whitespaces)
+        guard let first = trimmed.first else { return false }
+
+        if ["•", "-", "*"].contains(first) {
+            return trimmed.dropFirst().first?.isWhitespace == true
+        }
+
+        let digits = trimmed.prefix(while: \.isNumber)
+        guard !digits.isEmpty else { return false }
+        let suffix = trimmed.dropFirst(digits.count)
+        guard let marker = suffix.first else { return false }
+        return [".", ")"].contains(marker) && suffix.dropFirst().first?.isWhitespace == true
+    }
+
+    private static func extractImageAnalyzerTranscript(from image: CGImage) async -> String? {
+        guard ImageAnalyzer.isSupported else { return nil }
+
+        var configuration = ImageAnalyzer.Configuration([.text])
+        configuration.locales = Locale.preferredLanguages
+        let analyzer = ImageAnalyzer()
+
+        do {
+            let analysis = try await analyzer.analyze(
+                image,
+                orientation: .up,
+                configuration: configuration
+            )
+            let transcript = analysis.transcript.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !transcript.isEmpty else { return nil }
+            return transcript
+        } catch {
+            Self.logger.error("ImageAnalyzer request failed: \(error.localizedDescription)")
+            return nil
+        }
+    }
+
+    private static func extractVisionText(
+        from image: CGImage,
+        recognitionLevel: VNRequestTextRecognitionLevel,
+        usesLanguageCorrection: Bool,
+        automaticallyDetectsLanguage: Bool
+    ) async -> String {
         guard !Task.isCancelled else { return "" }
 
         let request = VNRecognizeTextRequest()
-        request.recognitionLevel = .fast  // Much faster than .accurate
-        request.usesLanguageCorrection = false  // Skip for speed
+        request.recognitionLevel = recognitionLevel
+        request.usesLanguageCorrection = usesLanguageCorrection
+        request.automaticallyDetectsLanguage = automaticallyDetectsLanguage
+        request.recognitionLanguages = Locale.preferredLanguages
 
         let handler = VNImageRequestHandler(cgImage: image, options: [:])
 
@@ -36,27 +189,15 @@ nonisolated enum TextRecognitionManager {
             return ""
         }
 
-        // Combine all recognized text
         let text = observations
             .compactMap { $0.topCandidates(1).first?.string }
-            .joined(separator: " ")
+            .joined(separator: "\n")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
 
         Self.logger.debug("Extracted \(text.count) chars from image")
-        print("[JustNow OCR] Extracted \(text.count) chars")
         if !text.isEmpty {
-            print("[JustNow OCR] Sample: \(String(text.prefix(100)))")
+            Self.logger.debug("OCR sample: \(String(text.prefix(120)))")
         }
         return text
-    }
-
-    /// Searches for text in a frame, returns true if found
-    @concurrent
-    static func frameContainsText(_ searchText: String, in image: CGImage) async -> Bool {
-        let extractedText = await extractText(from: image)
-        let contains = extractedText.localizedCaseInsensitiveContains(searchText)
-        if contains {
-            Self.logger.info("Found '\(searchText)' in frame")
-        }
-        return contains
     }
 }

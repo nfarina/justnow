@@ -17,6 +17,8 @@ struct SettingsView: View {
     @AppStorage("shortcutModifiers") private var shortcutModifiers: Int = 1_572_864  // ⌘⌥
     @AppStorage("overlayDismissKeyCode") private var overlayDismissKeyCode: Int = 53
     @AppStorage("overlayDismissModifiers") private var overlayDismissModifiers: Int = 0
+    @AppStorage("textGrabSoundEnabled") private var textGrabSoundEnabled: Bool = true
+    @AppStorage("textGrabDebugPreviewEnabled") private var textGrabDebugPreviewEnabled: Bool = false
 
     var context: SettingsContext = SettingsContext()
 
@@ -71,6 +73,18 @@ struct SettingsView: View {
                 }
             } header: {
                 Text("General")
+            }
+
+            Section {
+                Toggle("Play copied-text sound", isOn: $textGrabSoundEnabled)
+                Toggle("Show text-grab debug preview", isOn: $textGrabDebugPreviewEnabled)
+
+                Text("In rewind, drag over the frame to copy on-screen text from just that area. JustNow cleans up the OCR before it lands on the clipboard, and debug preview shows the exact crop sent into OCR.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            } header: {
+                Text("Rewind")
             }
 
             Section {

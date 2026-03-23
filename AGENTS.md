@@ -102,6 +102,8 @@ Release process and signing/deployment details are documented in:
 - `JustNow/AppDelegate.swift`: app lifecycle, menu bar, hotkey, capture policy
 - `JustNow/Capture/FrameBuffer.swift`: frame dedupe, retention handoff, OCR queueing
 - `JustNow/UI/OverlayWindowController.swift`: overlay window and keyboard handling
+- `JustNow/UI/TextGrabSelectionOverlay.swift`: drag-to-grab text overlay, clipboard copy feedback
+- `JustNow/Utilities/TextRecognitionManager.swift`: background OCR and higher-accuracy selection OCR cleanup
 - `JustNow/Storage/FrameStore.swift`: manifest and image persistence
 - `JustNow/Storage/RetentionManager.swift`: time-based pruning
 - `site/index.html`: public product page
@@ -125,6 +127,7 @@ Release process and signing/deployment details are documented in:
 - Settings rows should usually control real persisted behaviour rather than restating a fixed implementation detail.
 - Product-facing settings copy should describe user outcomes rather than internal engine details such as retention compaction mechanics.
 - Keep click-outside overlay dismissal; if keyboard dismissal becomes configurable, preserve `Escape` as the simple default.
+- Text grab in the overlay is a direct drag gesture on the frame preview; keep it discoverable with a lightweight in-frame hint rather than a deep settings dependency.
 - In the timeline UI, keep the recent-detail boundary and label priority aligned with the configured recent window rather than a hard-coded cutoff.
 - If UI copy mentions a nominal capture interval, sanity-check it against adaptive throttling and deduplicated browsing so the user-facing wording still matches observed behaviour.
 - Avoid stacking a custom permission alert on top of a macOS TCC prompt during first-launch flows; if the system dialog is already doing the ask, defer app guidance until after the user responds.
