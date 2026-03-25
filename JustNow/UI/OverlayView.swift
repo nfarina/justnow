@@ -858,15 +858,24 @@ private struct TimeLabels: View {
     }
 }
 
-// Cached formatters for date formatting
-private let timeFormatter: DateFormatter = {
-    let formatter = DateFormatter()
-    formatter.dateFormat = "h:mm a"
-    return formatter
-}()
-
 private let barBackgroundColor = Color.black.opacity(0.85)
 private let barBorderColor = Color.white.opacity(0.08)
+
+private let clockTimeFormat: Date.FormatStyle = .dateTime
+    .hour()
+    .minute()
+private let dayLabelTimeFormat: Date.FormatStyle = .dateTime
+    .weekday(.abbreviated)
+    .hour()
+    .minute()
+private let fullDateTimeFormat: Date.FormatStyle = .dateTime
+    .day()
+    .month(.abbreviated)
+    .hour()
+    .minute()
+private let timelineMarkerTimeFormat: Date.FormatStyle = .dateTime
+    .hour()
+    .minute()
 
 private extension View {
     func darkBarBackground<S: InsettableShape>(in shape: S) -> some View {
@@ -874,26 +883,6 @@ private extension View {
             .overlay(shape.stroke(barBorderColor, lineWidth: 1))
     }
 }
-
-private let dayTimeFormatter: DateFormatter = {
-    let formatter = DateFormatter()
-    formatter.dateFormat = "EEE h:mm a"
-    return formatter
-}()
-
-private let dateTimeFormatter: DateFormatter = {
-    let formatter = DateFormatter()
-    formatter.dateFormat = "d MMM h:mm a"
-    return formatter
-}()
-
-private let timelineAbsoluteTimeFormatter: DateFormatter = {
-    let formatter = DateFormatter()
-    formatter.locale = .autoupdatingCurrent
-    formatter.timeStyle = .short
-    formatter.dateStyle = .none
-    return formatter
-}()
 
 /// Format timestamp as relative time or absolute time for older frames
 private func formatRelativeTime(_ date: Date) -> String {
@@ -916,17 +905,17 @@ private func formatRelativeTime(_ date: Date) -> String {
     let calendar = Calendar.current
 
     if calendar.isDateInToday(date) {
-        return timeFormatter.string(from: date)
+        return date.formatted(clockTimeFormat)
     }
     if calendar.isDateInYesterday(date) {
-        return "Yesterday \(timeFormatter.string(from: date))"
+        return "Yesterday \(date.formatted(clockTimeFormat))"
     }
 
     let daysAgo = calendar.dateComponents([.day], from: date, to: Date()).day ?? 0
     if daysAgo < 7 {
-        return dayTimeFormatter.string(from: date)
+        return date.formatted(dayLabelTimeFormat)
     }
-    return dateTimeFormatter.string(from: date)
+    return date.formatted(fullDateTimeFormat)
 }
 
 private struct SliderTrack: View {
@@ -1372,5 +1361,5 @@ private func formatTimelineMarkerLabel(targetAge: TimeInterval, targetDate: Date
         return "\(totalHours)h"
     }
 
-    return timelineAbsoluteTimeFormatter.string(from: targetDate)
+    return targetDate.formatted(timelineMarkerTimeFormat)
 }

@@ -5,6 +5,7 @@
 
 import SwiftUI
 import Sparkle
+import Foundation
 
 struct SettingsView: View {
     @AppStorage("captureInterval") private var captureInterval: Double = 0.5
@@ -93,7 +94,7 @@ struct SettingsView: View {
                         Slider(value: $captureInterval, in: 0.5...5.0, step: 0.5)
                             .frame(width: 180)
 
-                        Text("\(captureInterval, specifier: "%.1f")s")
+                        Text("\(captureInterval.formatted(.number.precision(.fractionLength(1))))s")
                             .monospacedDigit()
                             .foregroundStyle(.secondary)
                     }
@@ -331,9 +332,7 @@ struct SettingsView: View {
     }
 
     private func formatBytes(_ bytes: Int64) -> String {
-        let formatter = ByteCountFormatter()
-        formatter.countStyle = .file
-        return formatter.string(fromByteCount: bytes)
+        return bytes.formatted(.byteCount(style: .file))
     }
 
     private func formatRate(_ value: Double) -> String {
