@@ -3,6 +3,7 @@
     "site_url": "https://justnow.tk.sg",
     "root_mounted_domain": true,
     "downloads_url": "https://github.com/yjsoon/justnow/releases/latest",
+    "releases_url": "https://github.com/yjsoon/justnow/releases",
     "changelog_url": "https://github.com/yjsoon/justnow/blob/main/CHANGELOG.md"
   },
   "product": {

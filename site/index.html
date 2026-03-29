@@ -3,77 +3,180 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>JustNow</title>
+    <title>JustNow — rewind your screen</title>
     <meta
       name="description"
-      content="JustNow is a native macOS menu bar app that lets you scroll back through recent screen history."
+      content="A free, open-source macOS menu bar app that quietly records your screen so you can scroll back and grab text from things you just closed."
     >
     <link rel="stylesheet" href="/styles.css">
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+    <link rel="icon" href="/favicon-32.png" sizes="32x32" type="image/png">
   </head>
   <body>
-    <div class="page-shell">
-      <header class="hero">
-        <p class="eyebrow">macOS menu bar app</p>
-        <h1>Scroll back through the last few minutes of your screen.</h1>
-        <p class="lede">
-          JustNow quietly captures your recent screen history so you can pull up a fullscreen timeline
-          whenever you need to recover a detail you have just moved past.
-        </p>
-        <div class="hero-actions">
-          <a class="button button-primary" href="https://github.com/yjsoon/justnow/releases/latest">Download the latest release</a>
-          <a class="button button-secondary" href="/releases/">Read release notes</a>
-        </div>
+    <div class="page">
+
+      <header class="header">
+        <a href="/" class="header-lockup">
+          <img class="header-icon" src="/favicon.svg" alt="" width="24" height="24">
+          <span class="header-name">JustNow</span>
+        </a>
+        <nav class="header-links">
+          <a href="https://github.com/yjsoon/justnow">Source</a>
+          <a href="https://github.com/yjsoon/justnow/releases/latest" class="header-download">Download</a>
+        </nav>
       </header>
 
-      <main>
-        <section class="feature-grid" aria-label="Highlights">
-          <article class="feature-card">
-            <h2>Fast recall</h2>
-            <p>
-              Open the timeline with a hotkey and scrub backwards through your recent capture history
-              without digging through folders or screenshots.
-            </p>
-          </article>
-          <article class="feature-card">
-            <h2>Battery-aware capture</h2>
-            <p>
-              Capture cadence, indexing, and retention adapt to battery and thermal conditions so the
-              app stays practical as a background tool.
-            </p>
-          </article>
-          <article class="feature-card">
-            <h2>Built for the menu bar</h2>
-            <p>
-              JustNow lives in the menu bar, keeps its controls close, and stays out of the way until
-              you need a quick trip back in time.
-            </p>
-          </article>
-        </section>
+      <section class="hero">
+        <h1>You just closed that window.<br>Now get it back.</h1>
+        <p class="hero-sub">
+          JustNow is a tiny macOS menu bar app that quietly screenshots your
+          screen every few seconds, so you can rewind to what you were just
+          looking at. Drag over any frame to grab text straight to your
+          clipboard. That's basically it.
+        </p>
+        <div class="hero-actions">
+          <a class="btn btn-primary" href="https://github.com/yjsoon/justnow/releases/latest">
+            Download for macOS
+          </a>
+          <a class="btn btn-ghost" href="https://github.com/yjsoon/justnow">
+            View source on GitHub
+          </a>
+        </div>
+        <p class="hero-note">
+          Free and open source. Requires macOS 15+. Signed and notarised.
+        </p>
+      </section>
 
-        <section class="detail-band">
-          <div>
-            <p class="section-label">Requirements</p>
-            <p>macOS 15 or later with Screen Recording permission granted.</p>
-          </div>
-          <div>
-            <p class="section-label">Distribution</p>
-            <p>Signed and notarised builds are published on GitHub Releases.</p>
-          </div>
-          <div>
-            <p class="section-label">Updates</p>
+      <figure class="screenshot">
+        <!-- Replace src with an actual screenshot of the overlay -->
+        <div class="screenshot-placeholder" aria-label="App screenshot placeholder">
+          <span>Screenshot coming soon</span>
+        </div>
+      </figure>
+
+      <section class="why">
+        <h2>Why this exists</h2>
+        <p>
+          <a href="https://rewind.ai">Rewind.ai</a> was great at this job,
+          then got acquired and pivoted to AI. All I really wanted was a way to
+          scroll back a few minutes and copy that thing I accidentally closed
+          &mdash; no AI summaries, no cloud sync, no subscription. So I built
+          this.
+        </p>
+      </section>
+
+      <hr class="sep">
+
+      <section class="features">
+        <h2>What it does</h2>
+        <div class="feature-list">
+
+          <div class="feature">
+            <h3>Hotkey rewind</h3>
             <p>
-              The public app page and Sparkle appcast live in this repo. Repository builds already
-              include in-app update support, and stable public releases are served from <code>/appcast.xml</code>.
+              Press <kbd>&#8984;&#8997;J</kbd> to open a fullscreen timeline of
+              your recent screen history. Scrub backwards with arrow keys,
+              scroll, or click. Press Escape to dismiss.
             </p>
           </div>
-        </section>
-      </main>
 
-      <footer class="site-footer">
-        <a href="https://github.com/yjsoon/justnow">Source code</a>
-        <a href="/appcast.xml">Appcast</a>
-        <a href="/releases/">Release notes</a>
+          <div class="feature">
+            <h3>Drag-to-grab text</h3>
+            <p>
+              See something you want in a frame? Drag over it. JustNow runs OCR
+              on the selection and copies cleaned-up text straight to your
+              clipboard. Handy for URLs, error messages, or that one-time code
+              you let disappear.
+            </p>
+          </div>
+
+          <div class="feature">
+            <h3>Smart capture</h3>
+            <p>
+              Perceptual hashing skips duplicate frames, so a static screen
+              doesn't waste storage. Configurable history from 30 minutes up to
+              24 hours, with tiered compaction keeping recent frames at full
+              detail.
+            </p>
+          </div>
+
+          <div class="feature">
+            <h3>Battery-aware</h3>
+            <p>
+              On battery or under thermal pressure, capture frequency and
+              resolution scale down automatically. At low battery, background
+              OCR pauses entirely. It tries not to be the reason your fans
+              spin up.
+            </p>
+          </div>
+
+          <div class="feature">
+            <h3>Local and private</h3>
+            <p>
+              Everything stays in
+              <code>~/Library/Application&nbsp;Support/JustNow/</code>.
+              No cloud, no network calls, no telemetry. One-click "clear all
+              history" in Settings if you want a fresh start.
+            </p>
+          </div>
+
+          <div class="feature">
+            <h3>No purple dot</h3>
+            <p>
+              Uses one-shot ScreenCaptureKit screenshots instead of a
+              continuous stream, so you don't get the persistent purple
+              screen-sharing indicator in your menu bar.
+            </p>
+          </div>
+
+        </div>
+      </section>
+
+      <hr class="sep">
+
+      <section class="details">
+        <h2>Details</h2>
+        <dl class="details-grid">
+          <div class="detail">
+            <dt>Price</dt>
+            <dd>Free, forever</dd>
+          </div>
+          <div class="detail">
+            <dt>Requirements</dt>
+            <dd>macOS 15 (Sequoia) or later</dd>
+          </div>
+          <div class="detail">
+            <dt>Permissions</dt>
+            <dd>Screen Recording (the only one)</dd>
+          </div>
+          <div class="detail">
+            <dt>Updates</dt>
+            <dd>Built-in via Sparkle; checks automatically</dd>
+          </div>
+          <div class="detail">
+            <dt>Licence</dt>
+            <dd>Open source on <a href="https://github.com/yjsoon/justnow">GitHub</a></dd>
+          </div>
+          <div class="detail">
+            <dt>Hotkey</dt>
+            <dd>Fully configurable (default <kbd>&#8984;&#8997;J</kbd>)</dd>
+          </div>
+        </dl>
+      </section>
+
+      <footer class="footer">
+        <div class="footer-links">
+          <a href="https://github.com/yjsoon/justnow">GitHub</a>
+          <a href="https://github.com/yjsoon/justnow/releases/latest">Download</a>
+          <a href="/releases/">Release notes</a>
+          <a href="/appcast.xml">Appcast</a>
+        </div>
+        <p class="footer-colophon">
+          Built by <a href="https://github.com/yjsoon">@yjsoon</a> because
+          fat fingers happen.
+        </p>
       </footer>
+
     </div>
   </body>
 </html>

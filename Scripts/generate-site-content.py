@@ -34,8 +34,7 @@ def render_release_notes(source: dict[str, Any]) -> str:
 
     for release in releases:
         notes = "\n".join(
-            f"            <li>{escape(note)}</li>"
-            for note in release["notes"]
+            f"            <li>{escape(note)}</li>" for note in release["notes"]
         )
         cards.append(
             f"""        <article class="release-card">
@@ -60,31 +59,48 @@ def render_release_notes(source: dict[str, Any]) -> str:
     <title>{escape(product["name"])} Release Notes</title>
     <meta name="description" content="Release notes for {escape(product["name"])}.">
     <link rel="stylesheet" href="/styles.css">
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+    <link rel="icon" href="/favicon-32.png" sizes="32x32" type="image/png">
   </head>
   <body>
-    <div class="page-shell">
-      <header class="hero">
-        <p class="eyebrow">Release notes</p>
-        <h1>What changed in {escape(product["name"])}.</h1>
-        <p class="lede">
-          This page is generated from <code>site/releases.json</code>. Binaries remain on GitHub Releases,
-          while the Sparkle appcast is generated locally during release publishing.
+    <div class="page">
+
+      <header class="header">
+        <a href="/" class="header-lockup">
+          <img class="header-icon" src="/favicon.svg" alt="" width="24" height="24">
+          <span class="header-name">{escape(product["name"])}</span>
+        </a>
+        <nav class="header-links">
+          <a href="/">App page</a>
+          <a href="{escape(site["downloads_url"])}" class="header-download">Download</a>
+        </nav>
+      </header>
+
+      <section class="hero">
+        <h1>Release notes</h1>
+        <p class="hero-sub">
+          What changed in {escape(product["name"])}. Binaries live on
+          <a href="{escape(site["releases_url"])}">GitHub Releases</a>;
+          the Sparkle appcast is generated locally during release publishing.
         </p>
         <div class="hero-actions">
-          <a class="button button-primary" href="{escape(site["downloads_url"])}">Download the latest release</a>
-          <a class="button button-secondary" href="/">Back to the app page</a>
+          <a class="btn btn-primary" href="{escape(site["downloads_url"])}">Download the latest release</a>
+          <a class="btn btn-ghost" href="/">Back to the app page</a>
         </div>
-      </header>
+      </section>
 
       <main class="release-list">
 {cards_markup}
       </main>
 
-      <footer class="site-footer">
-        <a href="/">App page</a>
-        <a href="/appcast.xml">Appcast</a>
-        <a href="{escape(site["changelog_url"])}">Full changelog on GitHub</a>
+      <footer class="footer">
+        <div class="footer-links">
+          <a href="/">App page</a>
+          <a href="/appcast.xml">Appcast</a>
+          <a href="{escape(site["changelog_url"])}">Full changelog on GitHub</a>
+        </div>
       </footer>
+
     </div>
   </body>
 </html>
