@@ -45,12 +45,27 @@ private final class StatusMenuActionItemView: NSView {
         updateAppearance()
     }
 
+    override func viewWillDraw() {
+        super.viewWillDraw()
+        // Menu keyboard navigation updates `enclosingMenuItem.isHighlighted` without toggling hover;
+        // refresh label and symbol colours whenever AppKit is about to draw this row.
+        updateAppearance()
+    }
+
     override func draw(_ dirtyRect: NSRect) {
         super.draw(dirtyRect)
 
         if isHovered || enclosingMenuItem?.isHighlighted == true {
             NSColor.selectedContentBackgroundColor.setFill()
             dirtyRect.fill()
+        }
+    }
+
+    override func viewWillMove(toWindow newWindow: NSWindow?) {
+        super.viewWillMove(toWindow: newWindow)
+        // If the menu dismisses while the pointer is still over this row, AppKit may not send mouseExited.
+        if newWindow == nil {
+            isHovered = false
         }
     }
 
