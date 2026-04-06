@@ -50,12 +50,8 @@ class OverlayWindowController: NSObject {
             recentWindow: recentTimelineWindow,
             maximumAge: rewindHistoryOption.duration
         )
-        let searchableFrames = FeatureFlags.isSearchEnabled
-            ? frameBuffer.getFilteredFrames(recentWindow: recentTimelineWindow)
-            : []
         let vm = OverlayViewModel(
             timelineFrames: timelineFrames,
-            searchableFrames: searchableFrames,
             frameBuffer: frameBuffer,
             recentTimelineWindow: recentTimelineWindow,
             rewindHistoryOption: rewindHistoryOption,
@@ -132,8 +128,7 @@ class OverlayWindowController: NSObject {
                     return nil
                 }
                 return event
-            case 123: // Left arrow
-                if vm.isSearchAvailable && vm.isSearching { return event } // Let text field handle it
+            case 123: // Left arrow — navigate to older match (or older frame)
                 if event.modifierFlags.contains(.command) {
                     vm.goToStart()
                 } else if event.modifierFlags.contains(.option) {
@@ -142,8 +137,7 @@ class OverlayWindowController: NSObject {
                     vm.moveLeft()
                 }
                 return nil
-            case 124: // Right arrow
-                if vm.isSearchAvailable && vm.isSearching { return event } // Let text field handle it
+            case 124: // Right arrow — navigate to newer match (or newer frame)
                 if event.modifierFlags.contains(.command) {
                     vm.goToEnd()
                 } else if event.modifierFlags.contains(.option) {

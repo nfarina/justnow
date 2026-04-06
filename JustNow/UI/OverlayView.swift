@@ -10,12 +10,6 @@ import os.log
 
 private let logger = Logger(subsystem: "sg.tk.JustNow", category: "OverlayView")
 
-nonisolated enum SearchOCRBatchResult: Sendable {
-    case ocrPersisted
-    case frameLoadFailed
-    case skipped
-}
-
 enum SearchTimeScope: String, CaseIterable {
     case fiveMinutes
     case oneHour
@@ -93,7 +87,6 @@ enum SearchTimeScope: String, CaseIterable {
 class OverlayViewModel {
     var selectedIndex: Int = 0
     let timelineFrames: [StoredFrame]
-    let searchableFrames: [StoredFrame]
     let frameBuffer: FrameBuffer
     let recentTimelineWindow: TimeInterval
     let rewindHistoryOption: RewindHistoryOption
@@ -106,7 +99,7 @@ class OverlayViewModel {
     var searchTimeScope: SearchTimeScope = .all
     var searchResults: [StoredFrame] = []
     var isSearchInProgress = false
-    var searchProgress: Double = 0
+    var searchIndexStatus: SearchIndexStatus = .empty
     private var searchTask: Task<Void, Never>?
     var isTextGrabActive = false
     private var cancelTextGrabHandler: (() -> Void)?
@@ -124,20 +117,22 @@ class OverlayViewModel {
         displayedFrames.count
     }
 
+    var hasRetainedFrames: Bool {
+        frameBuffer.frameCount > 0
+    }
+
     var hasAnyFrames: Bool {
-        !timelineFrames.isEmpty || !searchableFrames.isEmpty
+        !timelineFrames.isEmpty || hasRetainedFrames
     }
 
     init(
         timelineFrames: [StoredFrame],
-        searchableFrames: [StoredFrame],
         frameBuffer: FrameBuffer,
         recentTimelineWindow: TimeInterval,
         rewindHistoryOption: RewindHistoryOption,
         onDismiss: @escaping () -> Void
     ) {
         self.timelineFrames = timelineFrames
-        self.searchableFrames = searchableFrames
         self.frameBuffer = frameBuffer
         self.recentTimelineWindow = recentTimelineWindow
         self.rewindHistoryOption = rewindHistoryOption
@@ -151,9 +146,7 @@ class OverlayViewModel {
             clearSearch()
             return
         }
-        print("[JustNow] toggleSearch called, isSearching was: \(isSearching)")
         isSearching.toggle()
-        print("[JustNow] isSearching is now: \(isSearching)")
         if !isSearching {
             clearSearch()
         }
@@ -166,7 +159,6 @@ class OverlayViewModel {
         searchQuery = ""
         searchResults = []
         isSearchInProgress = false
-        searchProgress = 0
         // Reset to end of full frames
         selectedIndex = max(0, timelineFrames.count - 1)
     }
@@ -182,161 +174,70 @@ class OverlayViewModel {
         return true
     }
 
+    /// Refresh the search index status from the frame buffer (call periodically while search bar is visible).
+    func refreshIndexStatus() async {
+        let previousIndexedFrames = searchIndexStatus.indexedFrames
+        let status = await frameBuffer.searchIndexStatus()
+        searchIndexStatus = status
+
+        guard isSearchAvailable, isSearching, !searchQuery.isEmpty else { return }
+        guard !isSearchInProgress else { return }
+        guard status.indexedFrames != previousIndexedFrames else { return }
+
+        performSearch()
+    }
+
+    /// Index-only search: queries the background OCR index without performing any query-time OCR.
     func performSearch() {
         guard isSearchAvailable else {
             clearSearch()
             return
         }
-        print("[JustNow] performSearch() called with query: '\(searchQuery)'")
         searchTask?.cancel()
         searchTask = nil
         guard !searchQuery.isEmpty else {
-            print("[JustNow] Query is empty, returning")
             searchResults = []
             return
         }
 
-        logger.info("Starting search for: '\(self.searchQuery)' in \(self.searchableFrames.count) frames")
-        print("[JustNow] Starting search for: '\(searchQuery)' in \(searchableFrames.count) frames")
+        logger.info("Starting index-only search for: '\(self.searchQuery)'")
 
         isSearchInProgress = true
-        searchProgress = 0
         searchResults = []
 
-        let query = searchQuery // Capture locally for task
+        let query = searchQuery
         let scope = searchTimeScope
         let searchCutoff = scope.cutoff(using: rewindHistoryOption)
-        let framesToSearch = searchCutoff.map { cutoff in
-            searchableFrames.filter { $0.timestamp >= cutoff }
-        } ?? searchableFrames
         let buffer = frameBuffer
         let cache = frameBuffer.textCache
-        let searchStartedAt = Date()
 
         searchTask = Task {
-            let total = framesToSearch.count
-            guard total > 0 else {
-                await MainActor.run {
-                    searchResults = []
-                    searchProgress = 1
-                    isSearchInProgress = false
-                }
-                return
-            }
-
-            let allFrameIDs = framesToSearch.map(\.id)
-            let cachedIDs = await cache.cachedFrameIDs(in: allFrameIDs)
-            let uncachedFrames = framesToSearch.filter { !cachedIDs.contains($0.id) }
-
-            var processedCount = 0
-            var ocrRuns = 0
-            var loadFailures = 0
-
-            // Process frames in parallel batches
-            let batchSize = 8 // Process 8 frames concurrently
-            let uncachedTotal = uncachedFrames.count
-
-            if uncachedTotal == 0 {
-                await MainActor.run {
-                    searchProgress = 1
-                }
-            }
-
-            for batchStart in stride(from: 0, to: uncachedTotal, by: batchSize) {
-                if Task.isCancelled { return }
-
-                let batchEnd = min(batchStart + batchSize, uncachedTotal)
-                let batch = Array(uncachedFrames[batchStart..<batchEnd])
-
-                // Process batch in parallel
-                await withTaskGroup(of: SearchOCRBatchResult.self) { group in
-                    for frame in batch {
-                        group.addTask {
-                            guard !Task.isCancelled else {
-                                return .skipped
-                            }
-
-                            guard let image = try? await buffer.getFullImage(for: frame) else {
-                                return .frameLoadFailed
-                            }
-
-                            let text = await TextRecognitionManager.extractText(from: image)
-
-                            guard !Task.isCancelled else {
-                                return .skipped
-                            }
-
-                            // Persist OCR text to indexed cache
-                            return await buffer.cacheOCRTextIfCurrent(text, for: frame) ? .ocrPersisted : .skipped
-                        }
-                    }
-
-                    for await result in group {
-                        switch result {
-                        case .ocrPersisted:
-                            ocrRuns += 1
-                        case .frameLoadFailed:
-                            loadFailures += 1
-                        case .skipped:
-                            break
-                        }
-                    }
-                }
-
-                processedCount = batchEnd
-                let completed = processedCount
-                await MainActor.run {
-                    searchProgress = uncachedTotal == 0 ? 1 : Double(completed) / Double(uncachedTotal)
-                }
-            }
+            let matchedIDs = await cache.searchFrameIDs(matching: query, limit: 10_000, since: searchCutoff)
 
             guard !Task.isCancelled else { return }
 
-            // Save cache periodically
-            await cache.save()
-
-            guard !Task.isCancelled else { return }
-
-            let matchedIDs = await cache.searchFrameIDs(matching: query, limit: total, since: searchCutoff)
-            let frameByID = Dictionary(uniqueKeysWithValues: framesToSearch.map { ($0.id, $0) })
-            var seenIDs: Set<UUID> = []
-            var sortedFrames: [StoredFrame] = []
-            sortedFrames.reserveCapacity(matchedIDs.count)
-
+            // The cache query returns newest-first, but the overlay expects oldest-to-newest
+            // arrays so left/right navigation and timeline labels stay consistent.
+            let allFrames = buffer.getFrames()
+            let frameByID = Dictionary(uniqueKeysWithValues: allFrames.map { ($0.id, $0) })
+            var results: [StoredFrame] = []
+            results.reserveCapacity(matchedIDs.count)
             for matchedID in matchedIDs {
-                guard seenIDs.insert(matchedID).inserted else { continue }
-                guard let frame = frameByID[matchedID] else { continue }
-                sortedFrames.append(frame)
+                if let frame = frameByID[matchedID] {
+                    results.append(frame)
+                }
             }
+            results.reverse()
 
             guard !Task.isCancelled else { return }
 
-            let searchDuration = Date().timeIntervalSince(searchStartedAt)
-            await SearchTelemetry.shared.recordSearch(
-                duration: searchDuration,
-                wasCold: uncachedTotal > 0,
-                totalFrames: total,
-                uncachedFrames: uncachedTotal,
-                matches: sortedFrames.count,
-                ocrRuns: ocrRuns,
-                loadFailures: loadFailures
-            )
-
-            print(
-                "[JustNow] Search complete: \(sortedFrames.count) matches, " +
-                "\(cachedIDs.count) cache hits, \(ocrRuns) OCR runs, \(loadFailures) frame load failures"
-            )
-
-            let finalResults = sortedFrames
-            let finalSelectedIndex = finalResults.isEmpty ? nil : finalResults.count - 1
-
+            let finalResults = results
             await MainActor.run {
                 if !Task.isCancelled {
                     searchResults = finalResults
                     isSearchInProgress = false
-                    if let finalSelectedIndex {
-                        selectedIndex = finalSelectedIndex
-                    }
+                    // Select newest match while keeping the array chronological.
+                    selectedIndex = max(0, finalResults.count - 1)
                 }
             }
         }
@@ -479,7 +380,7 @@ struct ContentAreaView: View {
                         .foregroundStyle(.white.opacity(0.6))
                     Text(
                         viewModel.isSearchAvailable
-                            ? "Search can still look through the last hour."
+                            ? "Search can still look through all indexed history."
                             : "Increase rewind history in Settings to keep older frames visible here."
                     )
                         .font(.subheadline)
@@ -573,19 +474,37 @@ struct SearchBarView: View {
                 .foregroundStyle(.white)
                 .focused($isFocused)
                 .onSubmit {
-                    print("[JustNow] onSubmit triggered, query: '\(viewModel.searchQuery)'")
                     viewModel.performSearch()
                 }
 
             if viewModel.isSearchInProgress {
-                ProgressView(value: viewModel.searchProgress)
-                    .progressViewStyle(.linear)
-                    .frame(width: 60)
+                ProgressView()
+                    .controlSize(.small)
                     .tint(.white)
             } else if !viewModel.searchResults.isEmpty {
-                Text("\(viewModel.searchResults.count) found")
-                    .font(.caption)
-                    .foregroundStyle(.white.opacity(0.6))
+                let status = viewModel.searchIndexStatus
+                let indexPercent = status.totalFrames > 0
+                    ? Int(round(Double(status.indexedFrames) / Double(status.totalFrames) * 100))
+                    : 100
+                if indexPercent < 100 {
+                    Text("\(viewModel.searchResults.count) found · \(indexPercent)% indexed")
+                        .font(.caption)
+                        .foregroundStyle(.white.opacity(0.6))
+                } else {
+                    Text("\(viewModel.searchResults.count) found")
+                        .font(.caption)
+                        .foregroundStyle(.white.opacity(0.6))
+                }
+            } else {
+                let status = viewModel.searchIndexStatus
+                let indexPercent = status.totalFrames > 0
+                    ? Int(round(Double(status.indexedFrames) / Double(status.totalFrames) * 100))
+                    : 100
+                if indexPercent < 100 {
+                    Text("\(indexPercent)% indexed")
+                        .font(.caption)
+                        .foregroundStyle(.white.opacity(0.4))
+                }
             }
 
             Button {
@@ -632,6 +551,13 @@ struct SearchBarView: View {
         .padding(.vertical, 12)
         .darkBarBackground(in: Capsule())
         .onAppear { isFocused = true }
+        .task {
+            // Periodically refresh index status while search bar is visible
+            while !Task.isCancelled {
+                await viewModel.refreshIndexStatus()
+                try? await Task.sleep(for: .seconds(2))
+            }
+        }
     }
 }
 

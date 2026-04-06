@@ -31,13 +31,29 @@ struct OCRIndexingPolicy: Sendable, Equatable {
     let minimumInterval: TimeInterval
     let maxQueueDepth: Int
     let maxFrameAge: TimeInterval
+    let concurrentJobs: Int
+    let searchImageMaxPixelSize: Int
 
     static let disabled = OCRIndexingPolicy(
         isEnabled: false,
         minimumInterval: 0,
         maxQueueDepth: 0,
-        maxFrameAge: 0
+        maxFrameAge: 0,
+        concurrentJobs: 1,
+        searchImageMaxPixelSize: 0
     )
+}
+
+struct SearchIndexStatus: Sendable, Equatable {
+    let totalFrames: Int
+    let indexedFrames: Int
+    let queuedFrames: Int
+
+    var pendingFrames: Int {
+        max(totalFrames - indexedFrames, 0)
+    }
+
+    static let empty = SearchIndexStatus(totalFrames: 0, indexedFrames: 0, queuedFrames: 0)
 }
 
 private enum SyncIngestResult {
@@ -48,6 +64,11 @@ private enum SyncIngestResult {
 private enum ClearWaitResult {
     case ready
     case cancelled
+}
+
+private enum OCRIndexingWorkResult: Sendable {
+    case skipped
+    case completed(frame: StoredFrame, text: String, duration: TimeInterval, indexLag: TimeInterval)
 }
 
 private struct PendingIngest {
@@ -72,6 +93,7 @@ class FrameBuffer {
     private var queuedOCRFrameIDs: Set<UUID> = []
     private var ocrPruningFrameIDs: Set<UUID> = []
     private var ocrIndexingTask: Task<Void, Never>?
+    private var shouldDequeueNewestOCRFrame = true
     /// Bounded backlog of captures waiting to hash and persist. Sync captures discard older async backlog rather than reordering processing, so dedupe stays chronological.
     private var ingestQueue: [PendingIngest] = []
     private var ingestProcessorTask: Task<Void, Never>?
@@ -243,6 +265,15 @@ class FrameBuffer {
         frames.count
     }
 
+    func searchIndexStatus() async -> SearchIndexStatus {
+        let indexedFrames = min(await textCache.count, frames.count)
+        return SearchIndexStatus(
+            totalFrames: frames.count,
+            indexedFrames: indexedFrames,
+            queuedFrames: ocrIndexQueue.count
+        )
+    }
+
     /// Load full-resolution image from disk
     func getFullImage(for frame: StoredFrame) async throws -> CGImage {
         try await frameStore.loadFullImage(id: frame.id)
@@ -319,7 +350,7 @@ class FrameBuffer {
             return
         }
 
-        enqueueRecentFramesForBackgroundOCR(maxAge: policy.maxFrameAge)
+        enqueueStoredFramesForBackgroundOCR()
         startBackgroundOCRIndexingIfNeeded()
     }
 
@@ -571,38 +602,22 @@ class FrameBuffer {
 
         ocrIndexQueue.append(frame)
         queuedOCRFrameIDs.insert(frame.id)
-        trimOCRIndexQueueIfNeeded()
+        updateOCRIndexQueueState()
         startBackgroundOCRIndexingIfNeeded()
     }
 
-    private func enqueueRecentFramesForBackgroundOCR(maxAge: TimeInterval) {
-        guard maxAge > 0 else { return }
-        let cutoff = Date().addingTimeInterval(-maxAge)
-        let candidates = frames.filter { $0.timestamp >= cutoff }
-
-        for frame in candidates {
+    private func enqueueStoredFramesForBackgroundOCR() {
+        for frame in frames {
             guard !queuedOCRFrameIDs.contains(frame.id) else { continue }
             ocrIndexQueue.append(frame)
             queuedOCRFrameIDs.insert(frame.id)
         }
 
-        trimOCRIndexQueueIfNeeded()
+        updateOCRIndexQueueState()
     }
 
-    private func trimOCRIndexQueueIfNeeded() {
-        let maxDepth = max(ocrIndexingPolicy.maxQueueDepth, 0)
-
-        if maxDepth == 0 {
-            ocrIndexQueue.removeAll()
-            queuedOCRFrameIDs.removeAll()
-            return
-        }
-
-        while ocrIndexQueue.count > maxDepth {
-            let dropped = ocrIndexQueue.removeFirst()
-            queuedOCRFrameIDs.remove(dropped.id)
-        }
-
+    /// Keep telemetry current without dropping retained frames from the indexing backlog.
+    private func updateOCRIndexQueueState() {
         recordQueueDepthTelemetry()
     }
 
@@ -622,6 +637,7 @@ class FrameBuffer {
         guard clearQueue else { return }
         ocrIndexQueue.removeAll()
         queuedOCRFrameIDs.removeAll()
+        shouldDequeueNewestOCRFrame = true
         recordQueueDepthTelemetry()
     }
 
@@ -637,10 +653,28 @@ class FrameBuffer {
     private func dequeueNextFrameForOCR() -> StoredFrame? {
         guard !ocrIndexQueue.isEmpty else { return nil }
 
-        let frame = ocrIndexQueue.removeLast()
+        let frame: StoredFrame
+        if shouldDequeueNewestOCRFrame {
+            frame = ocrIndexQueue.removeLast()
+        } else {
+            frame = ocrIndexQueue.removeFirst()
+        }
+        shouldDequeueNewestOCRFrame.toggle()
         queuedOCRFrameIDs.remove(frame.id)
         recordQueueDepthTelemetry()
         return frame
+    }
+
+    private func dequeueFramesForOCR(limit: Int) -> [StoredFrame] {
+        let safeLimit = max(limit, 1)
+        var batch: [StoredFrame] = []
+        batch.reserveCapacity(safeLimit)
+
+        while batch.count < safeLimit, let frame = dequeueNextFrameForOCR() {
+            batch.append(frame)
+        }
+
+        return batch
     }
 
     private func shouldContinueOCR(for frame: StoredFrame) -> Bool {
@@ -660,36 +694,68 @@ class FrameBuffer {
 
         while !Task.isCancelled {
             guard ocrIndexingPolicy.isEnabled else { return }
-            guard let frame = dequeueNextFrameForOCR() else { return }
+            let policy = ocrIndexingPolicy
+            let frames = dequeueFramesForOCR(limit: policy.concurrentJobs)
+            guard !frames.isEmpty else { return }
 
-            if Date().timeIntervalSince(frame.timestamp) > ocrIndexingPolicy.maxFrameAge {
-                continue
-            }
+            await withTaskGroup(of: OCRIndexingWorkResult.self) { group in
+                for frame in frames {
+                    guard shouldContinueOCR(for: frame) else { continue }
 
-            guard shouldContinueOCR(for: frame) else {
-                continue
-            }
+                    let frameStore = self.frameStore
+                    let textCache = self.textCache
+                    let imageMaxPixelSize = policy.searchImageMaxPixelSize
 
-            if await textCache.hasCachedText(for: frame.id) {
-                continue
-            }
+                    group.addTask {
+                        if await textCache.hasCachedText(for: frame.id) {
+                            return .skipped
+                        }
 
-            do {
-                let startedAt = Date()
-                let image = try await frameStore.loadFullImage(id: frame.id)
-                let text = await TextRecognitionManager.extractText(from: image)
-                guard await cacheOCRTextIfCurrent(text, for: frame) else {
-                    continue
+                        let startedAt = Date()
+
+                        do {
+                            let image: CGImage
+                            if imageMaxPixelSize > 0 {
+                                image = try await frameStore.loadSearchIndexImage(
+                                    id: frame.id,
+                                    maxPixelSize: imageMaxPixelSize
+                                )
+                            } else {
+                                image = try await frameStore.loadFullImage(id: frame.id)
+                            }
+
+                            let text = await TextRecognitionManager.extractText(from: image)
+                            guard !Task.isCancelled else { return .skipped }
+
+                            return .completed(
+                                frame: frame,
+                                text: text,
+                                duration: Date().timeIntervalSince(startedAt),
+                                indexLag: Date().timeIntervalSince(frame.timestamp)
+                            )
+                        } catch {
+                            return .skipped
+                        }
+                    }
                 }
 
-                let duration = Date().timeIntervalSince(startedAt)
-                let lag = Date().timeIntervalSince(frame.timestamp)
-                await searchTelemetry.recordBackgroundOCR(duration: duration, indexLag: lag)
-            } catch {
-                continue
+                for await result in group {
+                    guard !Task.isCancelled else { return }
+
+                    switch result {
+                    case .skipped:
+                        continue
+                    case let .completed(frame, text, duration, indexLag):
+                        guard await cacheOCRTextIfCurrent(text, for: frame) else {
+                            continue
+                        }
+
+                        await searchTelemetry.recordBackgroundOCR(duration: duration, indexLag: indexLag)
+                    }
+                }
             }
 
-            let sleepDuration = ocrIndexingPolicy.minimumInterval
+            let sleepDuration = policy.minimumInterval
             if sleepDuration > 0 {
                 try? await Task.sleep(for: .seconds(sleepDuration))
             }

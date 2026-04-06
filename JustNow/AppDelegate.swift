@@ -153,7 +153,7 @@ private final class StatusMenuActionItemView: NSView {
 
 enum FeatureFlags {
     /// Temporary kill switch while in-app search is hidden from release builds.
-    static let isSearchEnabled = false
+    static let isSearchEnabled = true
 }
 
 enum RecentTimelineWindow: Double, CaseIterable, Identifiable {
@@ -277,6 +277,14 @@ class AppDelegate: NSObject, NSApplicationDelegate, ScreenCaptureDelegate, NSMen
     private let ocrIndexBatteryQueueDepth: Int = 60
     private let ocrIndexIdleQueueDepth: Int = 40
     private let ocrIndexThermalQueueDepth: Int = 24
+    private let ocrIndexBaseConcurrentJobs: Int = 3
+    private let ocrIndexBatteryConcurrentJobs: Int = 2
+    private let ocrIndexIdleConcurrentJobs: Int = 2
+    private let ocrIndexThermalConcurrentJobs: Int = 1
+    private let ocrIndexBaseImageMaxPixelSize: Int = 1_200
+    private let ocrIndexBatteryImageMaxPixelSize: Int = 1_000
+    private let ocrIndexIdleImageMaxPixelSize: Int = 900
+    private let ocrIndexThermalImageMaxPixelSize: Int = 800
 
     private struct CapturePolicy: Equatable {
         let interval: TimeInterval
@@ -1123,10 +1131,12 @@ class AppDelegate: NSObject, NSApplicationDelegate, ScreenCaptureDelegate, NSMen
         var scale = 2
         var saveOptions = FrameSaveOptions.standard
         var duplicatePolicy = DuplicateFramePolicy.exact(atMostEvery: captureInterval)
-        var ocrIndexEnabled = FeatureFlags.isSearchEnabled
+        var ocrIndexEnabled = true
         var ocrIndexInterval = ocrIndexBaseInterval
         var ocrIndexQueueDepth = ocrIndexBaseQueueDepth
         var ocrIndexMaxAge = ocrIndexMaxFrameAge
+        var ocrIndexConcurrentJobs = ocrIndexBaseConcurrentJobs
+        var ocrIndexImageMaxPixelSize = ocrIndexBaseImageMaxPixelSize
 
         if onBattery || lowPowerMode {
             scale = 1
@@ -1137,6 +1147,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, ScreenCaptureDelegate, NSMen
             ocrIndexInterval = ocrIndexBatteryInterval
             ocrIndexQueueDepth = ocrIndexBatteryQueueDepth
             ocrIndexMaxAge = ocrIndexBatteryMaxFrameAge
+            ocrIndexConcurrentJobs = ocrIndexBatteryConcurrentJobs
+            ocrIndexImageMaxPixelSize = ocrIndexBatteryImageMaxPixelSize
         }
 
         if let batteryCharge {
@@ -1155,6 +1167,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, ScreenCaptureDelegate, NSMen
                 ocrIndexInterval = max(ocrIndexInterval, ocrIndexBatteryInterval)
                 ocrIndexQueueDepth = min(ocrIndexQueueDepth, ocrIndexBatteryQueueDepth)
                 ocrIndexMaxAge = min(ocrIndexMaxAge, ocrIndexBatteryMaxFrameAge)
+                ocrIndexConcurrentJobs = min(ocrIndexConcurrentJobs, ocrIndexBatteryConcurrentJobs)
+                ocrIndexImageMaxPixelSize = min(ocrIndexImageMaxPixelSize, ocrIndexBatteryImageMaxPixelSize)
             }
         }
 
@@ -1166,6 +1180,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, ScreenCaptureDelegate, NSMen
 
             ocrIndexInterval = max(ocrIndexInterval, ocrIndexIdleInterval)
             ocrIndexQueueDepth = min(ocrIndexQueueDepth, ocrIndexIdleQueueDepth)
+            ocrIndexConcurrentJobs = min(ocrIndexConcurrentJobs, ocrIndexIdleConcurrentJobs)
+            ocrIndexImageMaxPixelSize = min(ocrIndexImageMaxPixelSize, ocrIndexIdleImageMaxPixelSize)
         }
 
         if isThermalConstrained {
@@ -1181,6 +1197,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, ScreenCaptureDelegate, NSMen
                 ocrIndexInterval = max(ocrIndexInterval, ocrIndexThermalSeriousInterval)
                 ocrIndexQueueDepth = min(ocrIndexQueueDepth, ocrIndexThermalQueueDepth)
                 ocrIndexMaxAge = min(ocrIndexMaxAge, ocrIndexBatteryMaxFrameAge)
+                ocrIndexConcurrentJobs = min(ocrIndexConcurrentJobs, ocrIndexThermalConcurrentJobs)
+                ocrIndexImageMaxPixelSize = min(ocrIndexImageMaxPixelSize, ocrIndexThermalImageMaxPixelSize)
             }
         }
 
@@ -1190,7 +1208,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, ScreenCaptureDelegate, NSMen
             isEnabled: ocrIndexEnabled,
             minimumInterval: ocrIndexInterval,
             maxQueueDepth: ocrIndexQueueDepth,
-            maxFrameAge: ocrIndexMaxAge
+            maxFrameAge: ocrIndexMaxAge,
+            concurrentJobs: ocrIndexConcurrentJobs,
+            searchImageMaxPixelSize: ocrIndexImageMaxPixelSize
         )
 
         let batteryCanRelaxCadence = onBattery || lowPowerMode

@@ -172,7 +172,7 @@ actor TextCache {
         return cached
     }
 
-    /// Search indexed OCR text and return matching frame IDs, ranked by relevance then recency.
+    /// Search indexed OCR text and return matching frame IDs ordered by recency.
     func searchFrameIDs(matching query: String, limit: Int, since: Date? = nil) -> [UUID] {
         guard limit > 0 else {
             return []
@@ -192,7 +192,7 @@ actor TextCache {
                    FROM frame_text_fts
                    JOIN frame_text ON frame_text.frame_id = frame_text_fts.frame_id
                    WHERE frame_text_fts MATCH ?
-                   ORDER BY bm25(frame_text_fts), frame_text.timestamp DESC
+                   ORDER BY frame_text.timestamp DESC
                    LIMIT ?;
                    """
                    :
@@ -202,7 +202,7 @@ actor TextCache {
                    JOIN frame_text ON frame_text.frame_id = frame_text_fts.frame_id
                    WHERE frame_text_fts MATCH ?
                      AND frame_text.timestamp >= ?
-                   ORDER BY bm25(frame_text_fts), frame_text.timestamp DESC
+                   ORDER BY frame_text.timestamp DESC
                    LIMIT ?;
                    """
            ) {

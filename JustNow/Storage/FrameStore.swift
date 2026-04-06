@@ -5,6 +5,7 @@
 
 import Foundation
 import CoreGraphics
+import ImageIO
 
 enum FrameStoreError: Error {
     case directoryCreationFailed
@@ -121,8 +122,20 @@ actor FrameStore {
         }
 
         let path = framesURL.appendingPathComponent(metadata.filename)
-        guard let data = fileManager.contents(atPath: path.path),
-              let image = ImageEncoder.cgImage(from: data) else {
+        guard let image = ImageEncoder.cgImage(from: path) else {
+            throw FrameStoreError.imageDecodingFailed
+        }
+
+        return image
+    }
+
+    func loadSearchIndexImage(id: UUID, maxPixelSize: Int) throws -> CGImage {
+        guard let metadata = manifest.frames.first(where: { $0.id == id }) else {
+            throw FrameStoreError.fileNotFound(id)
+        }
+
+        let path = framesURL.appendingPathComponent(metadata.filename)
+        guard let image = ImageEncoder.cgImage(from: path, maxPixelSize: maxPixelSize) else {
             throw FrameStoreError.imageDecodingFailed
         }
 
