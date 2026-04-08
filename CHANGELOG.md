@@ -4,6 +4,18 @@ All notable changes to JustNow will be documented in this file.
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-04-08
+
+### Added
+- Added indexed full-history search in the rewind overlay so you can find retained screen text without scrubbing frame by frame.
+- Added in-frame search match highlighting to make matched words easier to spot once a result is open.
+- Added clickable overlay controls for close, previous/next frame, and search.
+- Added a configurable pause/resume shortcut and improved pause state visibility in the menu bar.
+
+### Changed
+- Smoothed search and scrolling transitions in the rewind overlay.
+- Refined the overlay chrome and keyboard hint layout so mouse controls and shortcut hints stay aligned.
+
 ## [0.2.0] - 2026-03-23
 
 ### Added
