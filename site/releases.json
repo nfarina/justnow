@@ -11,10 +11,23 @@
   },
   "releases": [
     {
+      "tag": "v0.3.0",
+      "version": "0.3.0",
+      "published_at": "2026-04-08",
+      "status": "Current public build",
+      "notes": [
+        "Added indexed full-history search in the rewind overlay so you can find retained screen text without scrubbing frame by frame.",
+        "Added in-frame search match highlighting to make matched words easier to spot once a result is open.",
+        "Added clickable overlay controls for close, previous/next frame, and search.",
+        "Added a configurable pause/resume shortcut and improved pause state visibility in the menu bar.",
+        "Smoothed search and scrolling transitions in the rewind overlay."
+      ]
+    },
+    {
       "tag": "v0.2.1",
       "version": "0.2.1",
       "published_at": "2026-04-03",
-      "status": "Current public build",
+      "status": "Previous release",
       "notes": [
         "Fixed Escape cancellation during drag-to-grab text so cancelling a selection no longer triggers OCR on mouse-up.",
         "Refreshed the public app page with a real screenshot of the rewind overlay and text-grab flow."
