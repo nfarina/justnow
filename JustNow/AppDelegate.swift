@@ -10,147 +10,6 @@ import HotKey
 import Carbon.HIToolbox
 import Sparkle
 
-private final class StatusMenuActionItemView: NSView {
-    private let titleField = NSTextField(labelWithString: "")
-    private let accessoryImageView = NSImageView()
-    private var trackingArea: NSTrackingArea?
-    private var isHovered = false {
-        didSet {
-            needsDisplay = true
-            updateAppearance()
-        }
-    }
-
-    weak var menuItem: NSMenuItem?
-
-    override var isFlipped: Bool { true }
-
-    init(width: CGFloat = 220) {
-        super.init(frame: NSRect(x: 0, y: 0, width: width, height: 28))
-        setup()
-    }
-
-    @available(*, unavailable)
-    required init?(coder: NSCoder) {
-        fatalError("init(coder:) has not been implemented")
-    }
-
-    func configure(title: String, accessorySystemImageName: String) {
-        titleField.stringValue = title
-        accessoryImageView.image = NSImage(
-            systemSymbolName: accessorySystemImageName,
-            accessibilityDescription: title
-        )
-        accessoryImageView.image?.isTemplate = true
-        updateAppearance()
-    }
-
-    override func viewWillDraw() {
-        super.viewWillDraw()
-        // Menu keyboard navigation updates `enclosingMenuItem.isHighlighted` without toggling hover;
-        // refresh label and symbol colours whenever AppKit is about to draw this row.
-        updateAppearance()
-    }
-
-    override func draw(_ dirtyRect: NSRect) {
-        super.draw(dirtyRect)
-
-        if isHovered || enclosingMenuItem?.isHighlighted == true {
-            NSColor.selectedContentBackgroundColor.setFill()
-            dirtyRect.fill()
-        }
-    }
-
-    override func viewWillMove(toWindow newWindow: NSWindow?) {
-        super.viewWillMove(toWindow: newWindow)
-        // If the menu dismisses while the pointer is still over this row, AppKit may not send mouseExited.
-        if newWindow == nil {
-            isHovered = false
-        }
-    }
-
-    override func updateTrackingAreas() {
-        super.updateTrackingAreas()
-
-        if let trackingArea {
-            removeTrackingArea(trackingArea)
-        }
-
-        let trackingArea = NSTrackingArea(
-            rect: bounds,
-            options: [.mouseEnteredAndExited, .activeInKeyWindow, .inVisibleRect],
-            owner: self,
-            userInfo: nil
-        )
-        addTrackingArea(trackingArea)
-        self.trackingArea = trackingArea
-    }
-
-    override func mouseEntered(with event: NSEvent) {
-        isHovered = true
-    }
-
-    override func mouseExited(with event: NSEvent) {
-        isHovered = false
-    }
-
-    override func mouseUp(with event: NSEvent) {
-        let location = convert(event.locationInWindow, from: nil)
-        guard bounds.contains(location),
-              let menuItem,
-              let action = menuItem.action else {
-            return
-        }
-
-        isHovered = false
-        let target = menuItem.target ?? NSApp.target(forAction: action, to: nil, from: menuItem)
-        menuItem.menu?.cancelTracking()
-        NSApp.sendAction(action, to: target, from: menuItem)
-    }
-
-    private func setup() {
-        titleField.lineBreakMode = .byTruncatingTail
-        titleField.font = .menuFont(ofSize: 0)
-
-        accessoryImageView.symbolConfiguration = .init(pointSize: 12, weight: .semibold)
-        accessoryImageView.imageScaling = .scaleProportionallyDown
-
-        let spacer = NSView()
-        spacer.setContentHuggingPriority(.defaultLow, for: .horizontal)
-        spacer.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
-
-        let stackView = NSStackView(views: [titleField, spacer, accessoryImageView])
-        stackView.orientation = .horizontal
-        stackView.alignment = .centerY
-        stackView.distribution = .fill
-        stackView.spacing = 8
-        stackView.edgeInsets = NSEdgeInsets(top: 5, left: 12, bottom: 5, right: 12)
-
-        addSubview(stackView)
-        stackView.translatesAutoresizingMaskIntoConstraints = false
-        NSLayoutConstraint.activate([
-            stackView.leadingAnchor.constraint(equalTo: leadingAnchor),
-            stackView.trailingAnchor.constraint(equalTo: trailingAnchor),
-            stackView.topAnchor.constraint(equalTo: topAnchor),
-            stackView.bottomAnchor.constraint(equalTo: bottomAnchor),
-            accessoryImageView.widthAnchor.constraint(equalToConstant: 14)
-        ])
-
-        titleField.setContentHuggingPriority(.defaultHigh, for: .horizontal)
-        titleField.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
-        accessoryImageView.setContentHuggingPriority(.required, for: .horizontal)
-        accessoryImageView.setContentCompressionResistancePriority(.required, for: .horizontal)
-
-        updateAppearance()
-    }
-
-    private func updateAppearance() {
-        let isHighlighted = isHovered || enclosingMenuItem?.isHighlighted == true
-        titleField.textColor = isHighlighted ? .selectedMenuItemTextColor : .labelColor
-        accessoryImageView.contentTintColor = isHighlighted ? .selectedMenuItemTextColor : .secondaryLabelColor
-    }
-}
-
 enum FeatureFlags {
     /// Temporary kill switch while in-app search is hidden from release builds.
     static let isSearchEnabled = true
@@ -187,8 +46,8 @@ enum RecentTimelineWindow: Double, CaseIterable, Identifiable {
 }
 
 @MainActor
-class AppDelegate: NSObject, NSApplicationDelegate, ScreenCaptureDelegate, NSMenuDelegate {
-    private var statusItem: NSStatusItem!
+class AppDelegate: NSObject, NSApplicationDelegate, ScreenCaptureDelegate {
+    private var statusItemController: StatusItemController!
     private var captureManager: ScreenCaptureManager!
     private var frameBuffer: FrameBuffer?
     private var overlayController: OverlayWindowController?
@@ -302,14 +161,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, ScreenCaptureDelegate, NSMen
         case deniedPreviously
     }
 
-    private enum MenuItemTag {
-        static let frameCount = 100
-        static let captureStatus = 101
-        static let pauseToggle = 102
-        static let permissionHelp = 103
-        static let showTimeline = 104
-    }
-
     func applicationDidFinishLaunching(_ notification: Notification) {
         setupStatusItem()
         updaterController.startUpdater()
@@ -375,70 +226,17 @@ class AppDelegate: NSObject, NSApplicationDelegate, ScreenCaptureDelegate, NSMen
     // MARK: - Setup
 
     private func setupStatusItem() {
-        statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
-        updateStatusItemButtonAppearance()
-
-        let menu = NSMenu()
-
-        let showItem = NSMenuItem(title: "Show Timeline", action: #selector(showOverlay), keyEquivalent: "")
-        showItem.target = self
-        showItem.tag = MenuItemTag.showTimeline
-        showItem.keyEquivalentModifierMask = [.command, .option]
-        showItem.view = makeMenuActionView(for: showItem)
-        menu.addItem(showItem)
-
-        let pauseItem = NSMenuItem(title: "Pause Recording", action: #selector(toggleCapturePause), keyEquivalent: "")
-        pauseItem.target = self
-        pauseItem.tag = MenuItemTag.pauseToggle
-        pauseItem.view = makeMenuActionView(for: pauseItem)
-        menu.addItem(pauseItem)
-
-        menu.addItem(NSMenuItem.separator())
-
-        let frameCountItem = NSMenuItem(title: "Frames: 0", action: nil, keyEquivalent: "")
-        frameCountItem.tag = MenuItemTag.frameCount
-        frameCountItem.isEnabled = false
-        menu.addItem(frameCountItem)
-
-        let captureStatusItem = NSMenuItem(title: "Capture: Starting...", action: nil, keyEquivalent: "")
-        captureStatusItem.tag = MenuItemTag.captureStatus
-        captureStatusItem.isEnabled = false
-        menu.addItem(captureStatusItem)
-
-        let permissionHelpItem = NSMenuItem(
-            title: "Screen Recording Help…",
-            action: #selector(showScreenRecordingHelp),
-            keyEquivalent: ""
+        statusItemController = StatusItemController(
+            actions: StatusItemControllerActions(
+                showTimeline: { [weak self] in self?.showOverlay() },
+                toggleCapturePause: { [weak self] in self?.toggleCapturePause() },
+                showSettings: { [weak self] in self?.showSettings() },
+                checkForUpdates: { [weak self] in self?.checkForUpdates(nil) },
+                quitApp: { [weak self] in self?.quitApp() },
+                showScreenRecordingHelp: { [weak self] in self?.showScreenRecordingHelp() },
+                menuWillOpen: { [weak self] in self?.handleStatusMenuWillOpen() }
+            )
         )
-        permissionHelpItem.tag = MenuItemTag.permissionHelp
-        permissionHelpItem.target = self
-        permissionHelpItem.isHidden = true
-        menu.addItem(permissionHelpItem)
-
-        menu.addItem(NSMenuItem.separator())
-
-        let settingsItem = NSMenuItem(title: "Settings...", action: #selector(showSettings), keyEquivalent: ",")
-        settingsItem.target = self
-        menu.addItem(settingsItem)
-
-        let updatesItem = NSMenuItem(
-            title: "Check for Updates…",
-            action: #selector(SPUStandardUpdaterController.checkForUpdates(_:)),
-            keyEquivalent: ""
-        )
-        updatesItem.target = updaterController
-        menu.addItem(updatesItem)
-
-        menu.addItem(NSMenuItem.separator())
-
-        let quitItem = NSMenuItem(title: "Quit JustNow", action: #selector(quitApp), keyEquivalent: "q")
-        quitItem.target = self
-        menu.addItem(quitItem)
-
-        menu.delegate = self
-        statusItem.menu = menu
-        updateShowTimelineMenuItem()
-        updatePauseMenuItem()
     }
 
     private func setupHotKey() {
@@ -929,7 +727,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, ScreenCaptureDelegate, NSMen
     @objc private func toggleCapturePause() {
         isUserPaused.toggle()
         updatePauseMenuItem()
-        updateStatusItemButtonAppearance()
 
         guard captureManager != nil else {
             updateCaptureStatus(isUserPaused ? "Paused (User)" : "Starting...")
@@ -1063,9 +860,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, ScreenCaptureDelegate, NSMen
         showPermissionAlert(force: true)
     }
 
-    // MARK: - NSMenuDelegate
-
-    func menuWillOpen(_ menu: NSMenu) {
+    private func handleStatusMenuWillOpen() {
         updateFrameCountMenuItem()
         updatePauseMenuItem()
         updatePermissionHelpMenuItem()
@@ -1248,40 +1043,15 @@ class AppDelegate: NSObject, NSApplicationDelegate, ScreenCaptureDelegate, NSMen
     }
 
     private func updateFrameCountMenuItem() {
-        guard let menu = statusItem.menu else { return }
-
-        if let item = menu.item(withTag: MenuItemTag.frameCount) {
-            let count = frameBuffer?.frameCount ?? 0
-            item.title = "Frames: \(count)"
-        }
+        statusItemController?.setFrameCount(frameBuffer?.frameCount ?? 0)
     }
 
     private func updateCaptureStatus(_ status: String) {
-        guard let menu = statusItem.menu,
-              let item = menu.item(withTag: MenuItemTag.captureStatus) else { return }
-        item.title = "Capture: \(status)"
+        statusItemController?.setCaptureStatus(status)
     }
 
     private func updatePauseMenuItem() {
-        guard let menu = statusItem.menu,
-              let item = menu.item(withTag: MenuItemTag.pauseToggle) else { return }
-        item.title = isUserPaused ? "Resume Recording" : "Pause Recording"
-        item.state = .off
-        item.image = nil
-        (item.view as? StatusMenuActionItemView)?.configure(
-            title: item.title,
-            accessorySystemImageName: isUserPaused ? "play.fill" : "pause.fill"
-        )
-    }
-
-    private func updateShowTimelineMenuItem() {
-        guard let menu = statusItem.menu,
-              let item = menu.item(withTag: MenuItemTag.showTimeline) else { return }
-        item.image = nil
-        (item.view as? StatusMenuActionItemView)?.configure(
-            title: item.title,
-            accessorySystemImageName: "backward.fill"
-        )
+        statusItemController?.setPaused(isUserPaused)
     }
 
     private func makeHotKey(
@@ -1308,33 +1078,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, ScreenCaptureDelegate, NSMen
             && rhsKeyCode != -1
             && lhsKeyCode == rhsKeyCode
             && lhsModifiers == rhsModifiers
-    }
-
-    private func makeMenuActionView(for item: NSMenuItem) -> StatusMenuActionItemView {
-        let view = StatusMenuActionItemView()
-        view.menuItem = item
-        return view
-    }
-
-    private func updateStatusItemButtonAppearance() {
-        guard let button = statusItem.button else { return }
-        let accessibilityDescription = isUserPaused ? "JustNow (Paused)" : "JustNow"
-        let assetName = isUserPaused ? "StatusBarIdle" : "StatusBarRecording"
-
-        if let image = NSImage(named: assetName)?.copy() as? NSImage {
-            image.isTemplate = true
-            image.accessibilityDescription = accessibilityDescription
-            button.image = image
-        } else {
-            button.image = NSImage(
-                systemSymbolName: "clock.arrow.circlepath",
-                accessibilityDescription: accessibilityDescription
-            )
-            button.image?.isTemplate = true
-        }
-
-        button.imagePosition = .imageOnly
-        button.title = ""
     }
 
     private func resolveLaunchPermissionState() -> LaunchPermissionState {
@@ -1374,12 +1117,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, ScreenCaptureDelegate, NSMen
     }
 
     private func updatePermissionHelpMenuItem() {
-        guard let menu = statusItem.menu,
-              let item = menu.item(withTag: MenuItemTag.permissionHelp) else { return }
-
         let needsPermissionHelp = !ScreenCaptureManager.hasScreenRecordingPermission()
-        item.isHidden = !needsPermissionHelp
-        item.isEnabled = needsPermissionHelp
+        statusItemController?.setPermissionHelpVisible(needsPermissionHelp)
     }
 
     private func showPermissionAlert(force: Bool = false) {
