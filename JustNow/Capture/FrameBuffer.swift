@@ -91,6 +91,7 @@ class FrameBuffer {
     private var frames: [StoredFrame] = []
     private let frameStore: FrameStore
     private let retentionManager: RetentionManager
+    private let blackFrameDetector = BlackFrameDetector.screenOff
     private var blackFrameFilterUntil: Date?
     private var saveOptions: FrameSaveOptions = .standard
     private var duplicatePolicy: DuplicateFramePolicy = .standard
@@ -146,7 +147,7 @@ class FrameBuffer {
 
     func addFrame(_ cgImage: CGImage, timestamp: Date) {
         // Skip black frames only during sleep/wake transitions.
-        if shouldCheckBlackFrame(at: timestamp) && isBlackFrame(cgImage) {
+        if shouldCheckBlackFrame(at: timestamp) && blackFrameDetector.isBlackFrame(cgImage) {
             print("Skipping black frame")
             return
         }
@@ -156,7 +157,7 @@ class FrameBuffer {
 
     /// Add a frame synchronously (awaits save completion). Used when opening overlay.
     func addFrameSync(_ cgImage: CGImage, timestamp: Date) async {
-        if shouldCheckBlackFrame(at: timestamp) && isBlackFrame(cgImage) {
+        if shouldCheckBlackFrame(at: timestamp) && blackFrameDetector.isBlackFrame(cgImage) {
             return
         }
 
@@ -808,63 +809,6 @@ class FrameBuffer {
         Task(priority: .utility) {
             await SearchTelemetry.shared.recordQueueDepth(depth: depth, capacity: capacity)
         }
-    }
-
-    /// Detect true "screen off" frames vs dark content.
-    /// Screen-off frames are uniformly black (all ~0), dark content has variation.
-    private func isBlackFrame(_ image: CGImage) -> Bool {
-        let width = image.width
-        let height = image.height
-
-        guard width > 0 && height > 0,
-              let dataProvider = image.dataProvider,
-              let data = dataProvider.data,
-              let bytes = CFDataGetBytePtr(data) else {
-            return false
-        }
-
-        let bytesPerPixel = image.bitsPerPixel / 8
-        let bytesPerRow = image.bytesPerRow
-
-        guard bytesPerPixel >= 3 else { return false }
-        let gridSize = 8
-        var maxY: UInt8 = 0
-        var minY: UInt8 = 255
-        var darkCount = 0
-        var sampleCount = 0
-
-        for gy in 0..<gridSize {
-            let y = (height * (2 * gy + 1)) / (2 * gridSize)
-            for gx in 0..<gridSize {
-                let x = (width * (2 * gx + 1)) / (2 * gridSize)
-                let offset = y * bytesPerRow + x * bytesPerPixel
-                let r = bytes[offset]
-                let g = bytes[offset + 1]
-                let b = bytes[offset + 2]
-
-                // Integer luma approximation: 0.2126r + 0.7152g + 0.0722b
-                let luma = UInt8((UInt16(r) * 54 + UInt16(g) * 183 + UInt16(b) * 19) >> 8)
-
-                maxY = max(maxY, luma)
-                minY = min(minY, luma)
-                if luma < 5 { darkCount += 1 }
-                sampleCount += 1
-            }
-        }
-
-        guard sampleCount > 0 else { return false }
-
-        let darkRatio = Double(darkCount) / Double(sampleCount)
-
-        // True black frame: mostly dark and uniform
-        // - Max luma < 6 (true black, not just dark)
-        // - Luma range < 3 (uniform, no structure)
-        // - At least 95% of samples are dark
-        let isVeryDark = maxY < 6
-        let isUniform = (maxY - minY) < 3
-        let isMostlyDark = darkRatio >= 0.95
-
-        return isVeryDark && isUniform && isMostlyDark
     }
 
     private func shouldCheckBlackFrame(at timestamp: Date) -> Bool {
