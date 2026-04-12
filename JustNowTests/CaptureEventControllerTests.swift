@@ -50,7 +50,7 @@ final class CaptureEventControllerTests: XCTestCase {
 
         controller.handleSessionBecomeActive()
 
-        XCTAssertEqual(recorder.events, ["filter:5", "start:Resuming..."])
+        XCTAssertEqual(recorder.events, ["filter:5.0", "start:Resuming..."])
         XCTAssertEqual(recorder.startRequests.count, 1)
         XCTAssertEqual(recorder.startRequests[0].attempt.successMessage, "Capture resumed after session active")
         XCTAssertEqual(recorder.startRequests[0].retry?.delay, .seconds(3))
@@ -113,6 +113,7 @@ private final class CaptureEventControllerRecorder {
     var context: CaptureEventContext
     private(set) var events: [String] = []
     private(set) var startRequests: [CaptureStartRequest] = []
+    private var retainedController: CaptureEventController?
 
     init(context: CaptureEventContext) {
         self.context = context
@@ -123,33 +124,35 @@ private final class CaptureEventControllerRecorder {
     }
 
     func makeController() -> CaptureEventController {
-        CaptureEventController(
-            context: { [unowned self] in self.context },
-            scheduleStart: { [unowned self] request in
+        let controller = CaptureEventController(
+            context: { self.context },
+            scheduleStart: { request in
                 self.events.append("start:\(request.status)")
                 self.startRequests.append(request)
             },
-            cancelPendingStart: { [unowned self] in
+            cancelPendingStart: {
                 self.events.append("cancelPendingStart")
             },
-            scheduleStop: { [unowned self] request in
+            scheduleStop: { request in
                 self.events.append("stop:\(request.status)")
             },
-            updateStatus: { [unowned self] status in
+            updateStatus: { status in
                 self.events.append("status:\(status)")
             },
-            enableBlackFrameFilter: { [unowned self] frameCount in
+            enableBlackFrameFilter: { frameCount in
                 self.events.append("filter:\(frameCount)")
             },
-            endForegroundActivity: { [unowned self] in
+            endForegroundActivity: {
                 self.events.append("endForegroundActivity")
             },
-            updatePauseMenu: { [unowned self] isPaused in
+            updatePauseMenu: { isPaused in
                 self.events.append("pauseMenu:\(isPaused)")
             },
-            logger: { [unowned self] message in
+            logger: { message in
                 self.events.append("log:\(message)")
             }
         )
+        retainedController = controller
+        return controller
     }
 }

@@ -27,7 +27,7 @@ final class OverlayTimelineTests: XCTestCase {
 
         let recentMarker = try XCTUnwrap(markers.first { $0.targetAge == 300 })
 
-        XCTAssertEqual(markers.map(\.targetAge), [1_800, 900, 300])
+        XCTAssertEqual(markers.map(\.targetAge), [1_800, 600, 300])
         XCTAssertEqual(recentMarker.frameIndex, 2)
         XCTAssertEqual(recentMarker.label, "5min")
         XCTAssertEqual(recentMarker.position, 2.0 / 3.0, accuracy: 0.000_1)

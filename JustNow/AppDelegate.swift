@@ -45,6 +45,10 @@ enum RecentTimelineWindow: Double, CaseIterable, Identifiable {
 
 @MainActor
 class AppDelegate: NSObject, NSApplicationDelegate, ScreenCaptureDelegate {
+    private var isRunningUnderXCTest: Bool {
+        ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
+    }
+
     private var statusItemController: StatusItemController!
     private var captureManager: ScreenCaptureManager!
     private var frameBuffer: FrameBuffer?
@@ -146,6 +150,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, ScreenCaptureDelegate {
     )
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        guard !isRunningUnderXCTest else { return }
+
         setupStatusItem()
         updaterController.startUpdater()
         setupHotKey()
