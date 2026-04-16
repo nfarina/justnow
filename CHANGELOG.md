@@ -4,6 +4,22 @@ All notable changes to JustNow will be documented in this file.
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-04-16
+
+### Changed
+- Refined overlay backdrop and timeline chrome for a polished rewind experience.
+- Fixed overlay backdrop sync so it tracks the presented frame correctly.
+- Fixed OCR indexing queue policy to prevent duplicate work.
+- Refreshed homepage copy and feature coverage.
+
+### Internal
+- Major architecture refactor: extracted discrete controllers for capture start, stop, policy, events, and hot keys; separated screen recording permission state, capture lifecycle state, and status item controller.
+- Extracted OCR indexing worker, black frame detector, and OCR frame queue into standalone modules.
+- Split overlay view model, timeline helpers, keyboard action resolver, and view components for clearer boundaries.
+- Centralised app storage defaults and capture restart scheduling.
+- Streamlined text cache statements.
+- Stabilised test suite for capture and refactor coverage.
+
 ## [0.3.0] - 2026-04-08
 
 ### Added
