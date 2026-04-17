@@ -44,13 +44,13 @@ enum RecentTimelineWindow: Double, CaseIterable, Identifiable {
 }
 
 @MainActor
-class AppDelegate: NSObject, NSApplicationDelegate, ScreenCaptureDelegate {
+class AppDelegate: NSObject, NSApplicationDelegate, CaptureCoordinatorDelegate {
     private var isRunningUnderXCTest: Bool {
         ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
     }
 
     private var statusItemController: StatusItemController!
-    private var captureManager: ScreenCaptureManager!
+    private var captureCoordinator: CaptureCoordinator!
     private var frameBuffer: FrameBuffer?
     private var overlayController: OverlayWindowController?
     private lazy var updaterController = SPUStandardUpdaterController(
@@ -114,7 +114,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, ScreenCaptureDelegate {
     private lazy var captureStopController = CaptureStopController(
         updateStatus: { [weak self] in self?.updateCaptureStatus($0) },
         stopCapture: { [weak self] in
-            await self?.captureManager.stopCapture()
+            await self?.captureCoordinator.stopCapture()
         },
         endForegroundActivity: { [weak self] in
             self?.appNapPreventer.stopActivity()
@@ -133,8 +133,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, ScreenCaptureDelegate {
             }
 
             return CaptureEventContext(
-                hasCaptureManager: self.captureManager != nil,
-                isCapturing: self.captureManager?.isCapturing == true,
+                hasCaptureManager: self.captureCoordinator != nil,
+                isCapturing: self.captureCoordinator?.isCapturing == true,
                 isSetupCaptureInProgress: self.setupCaptureTask != nil,
                 hasPendingStart: self.captureStartController.hasPendingStart,
                 isOverlayVisible: self.isOverlayVisible
@@ -197,7 +197,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, ScreenCaptureDelegate {
             }
 
             await self.setupCaptureTask?.value
-            await self.captureManager?.stopCapture()
+            await self.captureCoordinator?.stopCapture()
             await self.frameBuffer?.flushCaches()
         }
 
@@ -249,7 +249,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, ScreenCaptureDelegate {
     }
 
     private func setupCapture() {
-        captureManager = ScreenCaptureManager()
+        captureCoordinator = CaptureCoordinator()
 
         setupCaptureTask?.cancel()
         setupCaptureTask = Task { @MainActor [weak self] in
@@ -282,10 +282,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, ScreenCaptureDelegate {
 
             guard !Task.isCancelled else { return }
 
-            self.captureManager.delegate = self
+            self.captureCoordinator.delegate = self
             let preflightPolicy = self.currentCapturePolicy()
-            self.captureManager.updateCaptureInterval(preflightPolicy.interval)
-            self.captureManager.updateCaptureScale(preflightPolicy.scale)
+            self.captureCoordinator.updateCaptureInterval(preflightPolicy.interval)
+            self.captureCoordinator.updateCaptureScale(preflightPolicy.scale)
             self.frameBuffer?.updateSaveOptions(
                 preflightPolicy.saveOptions,
                 duplicatePolicy: preflightPolicy.duplicatePolicy
@@ -302,10 +302,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, ScreenCaptureDelegate {
             switch self.resolveLaunchPermissionState() {
             case .granted:
                 do {
-                    try await self.captureManager.startCapture()
+                    try await self.captureCoordinator.startCapture()
                     guard !Task.isCancelled else { return }
                     guard self.captureEventController.canStartCapture() else {
-                        await self.captureManager.stopCapture()
+                        await self.captureCoordinator.stopCapture()
                         if let blockedStatus = self.captureEventController.blockedStatus() {
                             self.updateCaptureStatus(blockedStatus)
                         }
@@ -458,10 +458,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, ScreenCaptureDelegate {
         guard !Task.isCancelled, captureEventController.canStartCapture() else { return false }
 
         do {
-            try await captureManager.startCapture()
+            try await captureCoordinator.startCapture()
             guard !Task.isCancelled,
                   captureEventController.canStartCapture() else {
-                await captureManager.stopCapture()
+                await captureCoordinator.stopCapture()
                 return false
             }
             updateCaptureStatus("Active")
@@ -509,11 +509,16 @@ class AppDelegate: NSObject, NSApplicationDelegate, ScreenCaptureDelegate {
 
     // MARK: - Capture Delegate
 
-    func captureManager(_ manager: ScreenCaptureManager, didCaptureFrame image: CGImage, at timestamp: Date) {
-        frameBuffer?.addFrame(image, timestamp: timestamp)
+    func captureCoordinator(
+        _ coordinator: CaptureCoordinator,
+        didCaptureFrame image: CGImage,
+        at timestamp: Date,
+        from display: DisplayInfo
+    ) {
+        frameBuffer?.addFrame(image, timestamp: timestamp, display: display)
     }
 
-    func captureManagerDidStop(_ manager: ScreenCaptureManager) {
+    func captureCoordinatorDidStopUnexpectedly(_ coordinator: CaptureCoordinator) {
         captureEventController.handleUnexpectedStop()
     }
 
@@ -542,10 +547,15 @@ class AppDelegate: NSObject, NSApplicationDelegate, ScreenCaptureDelegate {
             guard let self else { return }
             defer { self.overlayPresentationTask = nil }
 
-            // Capture a fresh frame immediately so the overlay has the latest state
-            if let image = await self.captureManager.captureNow() {
+            // Pick the display the user is looking at — the overlay opens there
+            // and its timeline is seeded with that display's frames.
+            let targetDisplay = self.resolveOverlayTargetDisplay()
+
+            // Capture a fresh frame for the targeted display so the overlay opens with the latest state.
+            if let target = targetDisplay,
+               let snapshot = await self.captureCoordinator.captureNow(displayID: target.id) {
                 guard !Task.isCancelled else { return }
-                await frameBuffer.addFrameSync(image, timestamp: Date())
+                await frameBuffer.addFrameSync(snapshot.image, timestamp: Date(), display: snapshot.display)
             }
 
             guard !Task.isCancelled else { return }
@@ -568,11 +578,38 @@ class AppDelegate: NSObject, NSApplicationDelegate, ScreenCaptureDelegate {
             }
             let recentTimelineWindow = RecentTimelineWindow.resolved(from: self.recentTimelineWindowSeconds)
             let rewindHistoryOption = RewindHistoryOption.resolved(from: self.rewindHistorySeconds)
+            let availableDisplays = self.mergedDisplays(frameBuffer: frameBuffer)
             self.overlayController?.showOverlay(
                 recentTimelineWindow: recentTimelineWindow.timeInterval,
-                rewindHistoryOption: rewindHistoryOption
+                rewindHistoryOption: rewindHistoryOption,
+                activeDisplay: targetDisplay,
+                availableDisplays: availableDisplays
             )
         }
+    }
+
+    /// Live displays first, then any historical displays present in the frame
+    /// buffer that aren't currently connected. Disconnected entries have a nil
+    /// `displayID` so callers can treat them as non-interactive.
+    private func mergedDisplays(frameBuffer: FrameBuffer) -> [DisplayInfo] {
+        var seen: Set<UUID> = []
+        var result: [DisplayInfo] = []
+        for display in captureCoordinator.activeDisplays where seen.insert(display.id).inserted {
+            result.append(display)
+        }
+        for historical in frameBuffer.knownDisplays() where seen.insert(historical.id).inserted {
+            result.append(DisplayInfo(id: historical.id, displayID: nil, name: historical.name))
+        }
+        return result
+    }
+
+    private func resolveOverlayTargetDisplay() -> DisplayInfo? {
+        if let screen = DisplayIdentity.screenContainingMouse(),
+           let cgID = DisplayIdentity.displayID(for: screen),
+           let info = captureCoordinator.display(forDisplayID: cgID) {
+            return info
+        }
+        return captureCoordinator.activeDisplays.first
     }
 
     @objc private func showSettings() {
@@ -604,14 +641,14 @@ class AppDelegate: NSObject, NSApplicationDelegate, ScreenCaptureDelegate {
     }
 
     private func updateCapturePolicy() {
-        guard captureManager != nil else { return }
+        guard captureCoordinator != nil else { return }
         capturePolicyController.applyIfNeeded(
             settings: currentCapturePolicySettings(),
             environment: currentCapturePolicyEnvironment(),
-            isCapturing: captureManager.isCapturing,
+            isCapturing: captureCoordinator.isCapturing,
             applier: CapturePolicyApplier(
-                updateCaptureInterval: { [weak self] in self?.captureManager.updateCaptureInterval($0) },
-                updateCaptureScale: { [weak self] in self?.captureManager.updateCaptureScale($0) },
+                updateCaptureInterval: { [weak self] in self?.captureCoordinator.updateCaptureInterval($0) },
+                updateCaptureScale: { [weak self] in self?.captureCoordinator.updateCaptureScale($0) },
                 updateFramePersistence: { [weak self] saveOptions, duplicatePolicy in
                     self?.frameBuffer?.updateSaveOptions(saveOptions, duplicatePolicy: duplicatePolicy)
                 },
