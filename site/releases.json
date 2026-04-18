@@ -11,10 +11,30 @@
   },
   "releases": [
     {
+      "tag": "v1.1.0",
+      "version": "1.1.0",
+      "published_at": "2026-04-18",
+      "status": "Current public build",
+      "notes": [
+        "feat: option to hide menu bar icon (closes #17) by @yjsoon in https://github.com/yjsoon/justnow/pull/19"
+      ]
+    },
+    {
+      "tag": "v1.0.0",
+      "version": "1.0.0",
+      "published_at": "2026-04-16",
+      "status": "Previous release",
+      "notes": [
+        "Refactor capture orchestration and split overlay components by @yjsoon in https://github.com/yjsoon/justnow/pull/14",
+        "Polish the overlay backdrop and timeline chrome by @yjsoon in https://github.com/yjsoon/justnow/pull/15",
+        "feat: hero screenshot compositing script by @yjsoon in https://github.com/yjsoon/justnow/pull/16"
+      ]
+    },
+    {
       "tag": "v0.3.0",
       "version": "0.3.0",
       "published_at": "2026-04-08",
-      "status": "Current public build",
+      "status": "Previous release",
       "notes": [
         "Added indexed full-history search in the rewind overlay so you can find retained screen text without scrubbing frame by frame.",
         "Added in-frame search match highlighting to make matched words easier to spot once a result is open.",
