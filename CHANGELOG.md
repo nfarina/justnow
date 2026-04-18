@@ -4,6 +4,16 @@ All notable changes to JustNow will be documented in this file.
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-04-18
+
+### Added
+- Added a setting to hide the JustNow menu bar icon when you prefer to rely on the shortcut or relaunching from Finder/Spotlight.
+- Added a compact rewind-overlay toggle so the menu bar icon can be restored even while it is hidden.
+
+### Changed
+- Reopening the app from Finder or Spotlight now opens Settings when the menu bar icon is hidden, making recovery explicit.
+- Refined the rewind timeline footer layout so capture details and text-grab feedback sit more cleanly.
+
 ## [1.0.0] - 2026-04-16
 
 ### Changed
